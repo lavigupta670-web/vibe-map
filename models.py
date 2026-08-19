@@ -84,14 +84,27 @@ class VibeCheck(db.Model):
     place_id = db.Column(db.Integer, db.ForeignKey('places.id'), nullable=False)
     rating = db.Column(db.Integer, nullable=False)
     review_text = db.Column(db.String(300), default='')
-    photo_filename = db.Column(db.String(256), nullable=False)
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
     location_verified = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
+    photos = db.relationship('VibePhoto', backref='vibe_check', lazy='dynamic',
+                             order_by='VibePhoto.id')
     tags = db.relationship('VibeTag', secondary='vibe_check_tags', backref='vibe_checks', lazy='dynamic')
     reports = db.relationship('Report', backref='vibe_check', lazy='dynamic')
+
+    @property
+    def first_photo(self):
+        p = self.photos.first()
+        return p.filename if p else ''
+
+
+class VibePhoto(db.Model):
+    __tablename__ = 'vibe_photos'
+    id = db.Column(db.Integer, primary_key=True)
+    vibe_check_id = db.Column(db.Integer, db.ForeignKey('vibe_checks.id'), nullable=False)
+    filename = db.Column(db.String(256), nullable=False)
 
 
 class VibeTag(db.Model):
@@ -114,7 +127,6 @@ class SavedPlace(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     place_id = db.Column(db.Integer, db.ForeignKey('places.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-
     __table_args__ = (db.UniqueConstraint('user_id', 'place_id'),)
 
 

@@ -4,7 +4,7 @@ import math
 from io import BytesIO
 from datetime import datetime, timezone
 from flask import (Flask, render_template, redirect, url_for, flash, request,
-                   jsonify, abort, send_from_directory, current_app, session)
+                   jsonify, abort, send_from_directory, current_app)
 from flask_login import (LoginManager, login_user, logout_user, login_required,
                          current_user)
 from flask_wtf.csrf import CSRFProtect
@@ -15,7 +15,7 @@ import requests
 
 from config import Config
 from models import (db, User, Place, VibeCheck, VibeTag, VibeCheckTag,
-                    SavedPlace, Report)
+                    SavedPlace, Report, VibePhoto)
 
 
 def create_app():
@@ -227,6 +227,46 @@ def create_app():
                 db.session.add(VibeTag(name=name, emoji=emoji))
         db.session.commit()
 
+    def send_telegram_notification(vc, place):
+        bot_token = app.config.get('TELEGRAM_BOT_TOKEN', '')
+        channel_id = app.config.get('TELEGRAM_CHANNEL_ID', '')
+        if not bot_token or not channel_id:
+            return
+        try:
+            photo = vc.photos.first()
+            cat_label = {'chai': '☕ Chai', 'cafe': '☕ Café',
+                         'restaurant': '🍽️ Restaurant', 'hangout': '🎉 Hangout'}
+            text = (
+                f"🔥 <b>NEW VIBE CHECK</b>\n\n"
+                f"📍 {place.name}\n"
+                f"{cat_label.get(place.category, '')}\n"
+                f"⭐ {vc.rating}/5\n"
+                f"👤 {vc.user.username}\n"
+            )
+            if vc.location_verified:
+                text += "📍 Location Verified\n"
+            if vc.review_text:
+                text += f"\n💬 \"{vc.review_text}\""
+            base_url = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '')
+            if base_url:
+                base_url = f"https://{base_url}"
+            if photo:
+                photo_url = f"{base_url}/uploads/{photo.filename}"
+                resp = requests.post(
+                    f"https://api.telegram.org/bot{bot_token}/sendPhoto",
+                    data={'chat_id': channel_id, 'photo': photo_url,
+                          'caption': text, 'parse_mode': 'HTML'},
+                    timeout=10
+                )
+            else:
+                resp = requests.post(
+                    f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                    data={'chat_id': channel_id, 'text': text, 'parse_mode': 'HTML'},
+                    timeout=10
+                )
+        except Exception:
+            pass
+
     # ---- Context Processor ----
 
     @app.context_processor
@@ -416,16 +456,16 @@ def create_app():
         tags = VibeTag.query.order_by(VibeTag.name).all()
 
         if request.method == 'POST':
-            photo = request.files.get('photo')
-            camera_photo = request.files.get('camera_photo')
-            actual_photo = photo or camera_photo
+            photo_files = []
+            for i in range(4):
+                photo = request.files.get(f'photo_{i}')
+                camera = request.files.get(f'camera_photo_{i}')
+                actual = photo or camera
+                if actual and actual.filename and allowed_file(actual.filename):
+                    photo_files.append(actual)
 
-            if not actual_photo or actual_photo.filename == '':
+            if not photo_files:
                 flash('NO PHOTO = NO VIBE CHECK 👀 Upload a photo!', 'error')
-                return redirect(url_for('vibe_check', google_place_id=google_place_id))
-
-            if not allowed_file(actual_photo.filename):
-                flash('Invalid file type. Use JPG, PNG, or WEBP.', 'error')
                 return redirect(url_for('vibe_check', google_place_id=google_place_id))
 
             rating = request.form.get('rating', type=int)
@@ -445,14 +485,11 @@ def create_app():
                 if dist <= app.config['LOCATION_VERIFY_RADIUS']:
                     loc_verified = True
 
-            filename = save_upload(actual_photo, 'vibes')
-
             vc = VibeCheck(
                 user_id=current_user.id,
                 place_id=place.id,
                 rating=rating,
                 review_text=review_text,
-                photo_filename=filename,
                 latitude=lat,
                 longitude=lng,
                 location_verified=loc_verified,
@@ -460,11 +497,17 @@ def create_app():
             db.session.add(vc)
             db.session.flush()
 
+            for pf in photo_files:
+                filename = save_upload(pf, 'vibes')
+                vp = VibePhoto(vibe_check_id=vc.id, filename=filename)
+                db.session.add(vp)
+
             for tid in selected_tags:
                 vct = VibeCheckTag(vibe_check_id=vc.id, tag_id=int(tid))
                 db.session.add(vct)
 
             db.session.commit()
+            send_telegram_notification(vc, place)
             flash('VIBE CHECK POSTED 🔥', 'success')
             return redirect(url_for('place', google_place_id=google_place_id))
 
@@ -651,7 +694,12 @@ def create_app():
         users = User.query.order_by(User.created_at.desc()).all()
         vibes = VibeCheck.query.order_by(VibeCheck.created_at.desc()).all()
         reports = Report.query.filter_by(status='pending').order_by(Report.created_at.desc()).all()
-        return render_template('admin.html', users=users, vibes=vibes, reports=reports)
+        total_users = User.query.count()
+        total_vibes = VibeCheck.query.count()
+        total_photos = VibePhoto.query.count()
+        return render_template('admin.html', users=users, vibes=vibes, reports=reports,
+                               total_users=total_users, total_vibes=total_vibes,
+                               total_photos=total_photos)
 
     @app.route('/admin/delete_vibe/<int:vid>')
     @login_required
@@ -659,9 +707,11 @@ def create_app():
         if not current_user.is_admin:
             abort(403)
         vc = VibeCheck.query.get_or_404(vid)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], vc.photo_filename)
-        if os.path.exists(filepath):
-            os.remove(filepath)
+        for p in vc.photos:
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], p.filename)
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            db.session.delete(p)
         VibeCheckTag.query.filter_by(vibe_check_id=vid).delete()
         Report.query.filter_by(vibe_check_id=vid).delete()
         db.session.delete(vc)
