@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Not Found — VIBE MAP{% endblock %}
+
+{% block content %}
+<div class="error-page">
+  <div>
+    <div class="error-code">404</div>
+    <p class="error-msg">This vibe doesn't exist 🤷</p>
+    <a href="{{ url_for('index') }}" class="btn btn-primary error-home">GO HOME 🔥</a>
+  </div>
+</div>
+{% endblock %}

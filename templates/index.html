@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}VIBE MAP — Check the vibe before you go{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="hero-logo">VIBE MAP</div>
+  <p class="hero-tagline">Check the vibe before you go. 🔥</p>
+
+  <form id="searchForm" class="search-box" action="{{ url_for('search') }}" method="GET">
+    <input type="text" name="q" placeholder="Search chai, cafés, restaurants or hangout places…"
+           autocomplete="off" value="{{ q }}">
+    {% if lat %}<input type="hidden" name="lat" value="{{ lat }}">{% endif %}
+    {% if lng %}<input type="hidden" name="lng" value="{{ lng }}">{% endif %}
+    <button type="submit">🔎</button>
+  </form>
+
+  <button class="near-me-btn" id="nearMeBtn">📍 Near Me</button>
+
+  <!-- Jaipur Area Dropdown -->
+  <div style="margin-bottom:30px;text-align:center;">
+    <form id="areaForm" method="GET" action="/area/jagatpura">
+      <select name="area" id="areaDropdown" onchange="goToArea(this.value)" style="
+        padding: 14px 48px 14px 20px;
+        background: var(--card);
+        border: 2px solid var(--border);
+        border-radius: var(--radius-full);
+        color: var(--text);
+        font-size: 15px;
+        font-family: var(--font);
+        font-weight: 600;
+        outline: none;
+        cursor: pointer;
+        appearance: none;
+        -webkit-appearance: none;
+        background-image: url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%228%22 viewBox=%220 0 12 8%22><path fill=%22%23777%22 d=%22M1 0l5 6 5-6z%22/></svg>');
+        background-repeat: no-repeat;
+        background-position: right 18px center;
+        min-width: 280px;
+        max-width: 90vw;
+        transition: border-color 0.3s;
+      ">
+        <option value="">🏙️ Explore Jaipur Areas</option>
+        {% for area in jaipur_areas %}
+          <option value="{{ area.name }}">{{ area.emoji }} {{ area.name }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+
+  <div class="cat-grid">
+    {% for key, cat in categories.items() %}
+      <div class="cat-btn" data-category="{{ key }}">
+        <span class="cat-emoji">{{ cat.emoji }}</span>
+        <span class="cat-name">{{ cat.label }}</span>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+{% if trending %}
+<div class="container">
+  <h2 class="section-title">🔥 TRENDING VIBES NEAR YOU</h2>
+  <p class="section-subtitle">Places with the hottest vibes right now</p>
+  <div class="cards-grid">
+    {% for place, dist, score in trending %}
+      <a href="{{ url_for('place', google_place_id=place.google_place_id) }}{% if lat %}?lat={{ lat }}&lng={{ lng }}{% endif %}"
+         class="place-card" style="text-decoration:none;color:inherit;">
+        {% if place.photo_reference %}
+          <img class="place-card-img" src="https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference={{ place.photo_reference }}&key={{ config.GOOGLE_PLACES_API_KEY }}"
+               alt="{{ place.name }}" loading="lazy"
+               onerror="this.style.background='var(--card2)';this.style.height='180px'">
+        {% else %}
+          <div class="place-card-img" style="background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:48px;">
+            {{ categories[place.category].emoji }}
+          </div>
+        {% endif %}
+        <div class="place-card-body">
+          <div class="place-card-cat">{{ categories[place.category].emoji }} {{ categories[place.category].label }}</div>
+          <div class="place-card-name">{{ place.name }}</div>
+          <div class="place-card-stats">
+            {% if place.vibe_score is not none %}
+              <span class="vibe-score">🔥 {{ place.vibe_score }} VIBE</span>
+            {% else %}
+              <span class="vibe-score" style="background:#333;">NO VIBES</span>
+            {% endif %}
+            {% if place.google_rating %}
+              <span class="google-rating">⭐ {{ place.google_rating }}</span>
+            {% endif %}
+            <span>📸 {{ place.vibe_check_count }}</span>
+            {% if dist %}
+              <span>📍 {{ format_distance(dist) }}</span>
+            {% endif %}
+          </div>
+          <div class="place-card-meta">
+            <span class="place-card-addr">{{ place.address or 'No address' }}</span>
+            <span class="view-vibe">VIEW VIBE →</span>
+          </div>
+        </div>
+      </a>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="container">
+  <div class="empty-state">
+    <div class="empty-icon">🔥</div>
+    <h3>Pick an area to explore vibes</h3>
+    <p>Use the dropdown above to discover places in Jaipur</p>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function goToArea(name) {
+  if (!name) return;
+  var slug = name.toLowerCase().replace(/\s+/g, '-');
+  window.location.href = '/area/' + slug;
+}
+</script>
+{% endblock %}

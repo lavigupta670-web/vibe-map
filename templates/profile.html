@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ user.username }} — VIBE MAP{% endblock %}
+
+{% block content %}
+<div class="profile-header">
+  <img class="profile-avatar" src="{{ url_for('uploaded_file', filename=user.profile_photo) }}"
+       alt="{{ user.username }}"
+       onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%231a1a1a%22 width=%22100%22 height=%22100%22/><text x=%2250%22 y=%2260%22 text-anchor=%22middle%22 fill=%22%23ff6b35%22 font-size=%2240%22>👤</text></svg>'">
+  <h1 class="profile-name">{{ user.username }}</h1>
+  <div class="profile-stats">
+    <div>
+      <div class="profile-stat-value">🔥 {{ vibes|length }}</div>
+      <div class="profile-stat-label">Vibe Checks</div>
+    </div>
+    <div>
+      <div class="profile-stat-value">📍 {{ places_checked }}</div>
+      <div class="profile-stat-label">Places</div>
+    </div>
+    {% if fav_cat %}
+    <div>
+      <div class="profile-stat-value">{{ categories[fav_cat].emoji }}</div>
+      <div class="profile-stat-label">{{ categories[fav_cat].label }}</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="container">
+  {% if vibes %}
+    <h2 class="section-title">Recent Vibe Checks</h2>
+    <div class="photo-grid">
+      {% for vc in vibes %}
+        <a href="{{ url_for('place', google_place_id=vc.place.google_place_id) }}">
+          <img src="{{ url_for('uploaded_file', filename=vc.photo_filename) }}"
+               alt="{{ vc.place.name }}" data-lightbox loading="lazy">
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">📸</div>
+      <h3>No vibes yet</h3>
+      <p>This user hasn't posted any vibe checks</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

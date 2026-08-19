@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.pyc
+uploads/*.jpg
+uploads/*.jpeg
+uploads/*.png
+uploads/*.webp
+vibe_map.db
+instance/

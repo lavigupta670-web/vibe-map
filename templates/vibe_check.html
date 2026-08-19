@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Vibe Check — {{ place.name }} — VIBE MAP{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div style="padding:24px 0;">
+    <a href="{{ url_for('place', google_place_id=place.google_place_id) }}"
+       style="color:var(--muted);font-size:14px;">← Back to {{ place.name }}</a>
+  </div>
+
+  <h1 style="font-size:28px;font-weight:900;margin-bottom:8px;">📸 CHECK THIS VIBE</h1>
+  <p style="color:var(--muted);margin-bottom:32px;">
+    {{ categories[place.category].emoji }} {{ place.name }}
+  </p>
+
+  <form id="vibeCheckForm" class="vc-form" method="POST" enctype="multipart/form-data"
+        action="{{ url_for('vibe_check', google_place_id=place.google_place_id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="rating" id="ratingInput" value="">
+    <input type="hidden" name="latitude" id="latInput" value="">
+    <input type="hidden" name="longitude" id="lngInput" value="">
+
+    <!-- Photo Upload -->
+    <div class="form-section">
+      <div class="form-section-title">Show us you were actually there 👀</div>
+      <div class="vc-upload-area" id="uploadArea">
+        <div class="upload-content">
+          <div class="upload-icon">📸</div>
+          <p>Tap to upload a photo</p>
+          <p class="upload-hint">JPG, PNG, WEBP · Max 5MB</p>
+          <div class="upload-options">
+            <label class="upload-opt-btn">
+              📷 Take Photo
+              <input type="file" id="cameraInput" name="camera_photo" accept="image/*" capture="environment" style="display:none">
+            </label>
+            <label class="upload-opt-btn">
+              🖼️ Upload Photo
+              <input type="file" id="photoInput" name="photo" accept="image/jpeg,image/png,image/webp" style="display:none">
+            </label>
+          </div>
+        </div>
+        <img class="vc-preview" id="previewImg" src="" alt="Preview" style="display:none;">
+      </div>
+    </div>
+
+    <!-- Rating -->
+    <div class="form-section">
+      <div class="form-section-title">RATE THE VIBE</div>
+      <div class="star-rating" id="starRating">
+        <span class="star" data-value="1">⭐</span>
+        <span class="star" data-value="2">⭐</span>
+        <span class="star" data-value="3">⭐</span>
+        <span class="star" data-value="4">⭐</span>
+        <span class="star" data-value="5">⭐</span>
+      </div>
+    </div>
+
+    <!-- Tags -->
+    <div class="form-section">
+      <div class="form-section-title">WHAT WAS THE VIBE?</div>
+      <div class="tag-grid">
+        {% for tag in tags %}
+          <label class="tag-option" data-tag="{{ tag.id }}">
+            <input type="checkbox" name="tags" value="{{ tag.id }}" style="display:none;">
+            {{ tag.emoji }} {{ tag.name }}
+          </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Review -->
+    <div class="form-section">
+      <div class="form-section-title">SHORT REVIEW</div>
+      <textarea class="review-textarea" id="reviewText" name="review_text"
+                placeholder="What was the vibe like?" maxlength="300"></textarea>
+      <div class="char-count" id="charCount">0/300</div>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-full" style="font-size:18px;padding:18px;">
+      POST VIBE 🔥
+    </button>
+  </form>
+</div>
+{% endblock %}

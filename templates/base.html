@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>{% block title %}VIBE MAP{% endblock %}</title>
+  <meta name="description" content="Check the vibe before you go. Real places, real people, real vibes.">
+  <meta name="theme-color" content="#0a0a0a">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flash-container">
+        {% for category, message in messages %}
+          <div class="flash-msg {{ category }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <nav class="top-nav">
+    <a href="{{ url_for('index') }}" class="logo">VIBE MAP</a>
+    <div class="nav-links">
+      <a href="{{ url_for('explore') }}">Explore</a>
+      {% if current_user.is_authenticated %}
+        <a href="{{ url_for('saved') }}">Saved</a>
+        <a href="{{ url_for('profile', username=current_user.username) }}">
+          <img src="{{ url_for('uploaded_file', filename=current_user.profile_photo) }}"
+               alt="{{ current_user.username }}" class="nav-avatar"
+               onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><rect fill=%22%231a1a1a%22 width=%2240%22 height=%2240%22/><text x=%2220%22 y=%2226%22 text-anchor=%22middle%22 fill=%22%23ff6b35%22 font-size=%2218%22>👤</text></svg>'">
+        </a>
+        {% if current_user.is_admin %}
+          <a href="{{ url_for('admin') }}">Admin</a>
+        {% endif %}
+        <a href="{{ url_for('logout') }}">Logout</a>
+      {% else %}
+        <a href="{{ url_for('login') }}">Login</a>
+      {% endif %}
+    </div>
+  </nav>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <a href="{{ url_for('index') }}" class="{% if request.endpoint == 'index' %}active{% endif %}">
+        <span class="nav-icon">🏠</span>Home
+      </a>
+      <a href="{{ url_for('explore') }}" class="{% if request.endpoint == 'explore' %}active{% endif %}">
+        <span class="nav-icon">🔎</span>Explore
+      </a>
+      <a href="#" id="bottomVibeBtn" style="pointer-events:none;">
+        <span class="nav-icon">📸</span>Vibe
+      </a>
+      <a href="{{ url_for('saved') }}" class="{% if request.endpoint == 'saved' %}active{% endif %}">
+        <span class="nav-icon">❤️</span>Saved
+      </a>
+      {% if current_user.is_authenticated %}
+        <a href="{{ url_for('profile', username=current_user.username) }}" class="{% if request.endpoint == 'profile' %}active{% endif %}">
+          <span class="nav-icon">👤</span>Profile
+        </a>
+      {% else %}
+        <a href="{{ url_for('login') }}">
+          <span class="nav-icon">👤</span>Login
+        </a>
+      {% endif %}
+    </div>
+  </nav>
+
+  <!-- Lightbox -->
+  <div class="lightbox" id="lightbox">
+    <img id="lightboxImg" src="" alt="Preview">
+  </div>
+
+  <!-- Report Modal -->
+  <div class="modal-overlay" id="reportModal">
+    <div class="modal" style="position:relative;">
+      <button class="modal-close">&times;</button>
+      <div class="modal-title">Report this Vibe Check</div>
+      <form id="reportForm" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="report-option" name="reason" value="Fake review">🚫 Fake review</button>
+        <button type="submit" class="report-option" name="reason" value="Wrong place">📍 Wrong place</button>
+        <button type="submit" class="report-option" name="reason" value="Inappropriate photo">📸 Inappropriate photo</button>
+        <button type="submit" class="report-option" name="reason" value="Spam">🗑️ Spam</button>
+        <button type="submit" class="report-option" name="reason" value="Offensive content">⚠️ Offensive content</button>
+        <button type="submit" class="report-option" name="reason" value="Other">••• Other</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

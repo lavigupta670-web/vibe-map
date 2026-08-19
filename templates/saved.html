@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Saved — VIBE MAP{% endblock %}
+
+{% block content %}
+<div class="container" style="padding-top:24px;">
+  <h1 class="section-title" style="margin-top:0;">❤️ SAVED PLACES</h1>
+
+  {% if saved %}
+    <div class="cards-grid">
+      {% for s in saved %}
+        <a href="{{ url_for('place', google_place_id=s.place.google_place_id) }}"
+           class="place-card" style="text-decoration:none;color:inherit;">
+          {% if s.place.photo_reference %}
+            <img class="place-card-img" src="https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference={{ s.place.photo_reference }}&key={{ config.GOOGLE_PLACES_API_KEY }}"
+                 alt="{{ s.place.name }}" loading="lazy"
+                 onerror="this.style.background='var(--card2)';this.style.height='180px'">
+          {% else %}
+            <div class="place-card-img" style="background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:48px;">
+              {{ categories[s.place.category].emoji }}
+            </div>
+          {% endif %}
+          <div class="place-card-body">
+            <div class="place-card-cat">{{ categories[s.place.category].emoji }} {{ categories[s.place.category].label }}</div>
+            <div class="place-card-name">{{ s.place.name }}</div>
+            <div class="place-card-stats">
+              {% if s.place.vibe_score is not none %}
+                <span class="vibe-score">🔥 {{ s.place.vibe_score }} VIBE</span>
+              {% else %}
+                <span class="vibe-score" style="background:#333;">NEW</span>
+              {% endif %}
+              <span>📸 {{ s.place.vibe_check_count }}</span>
+            </div>
+            <div class="place-card-meta">
+              <span class="place-card-addr">{{ s.place.address or 'No address' }}</span>
+              <span class="view-vibe">VIEW VIBE →</span>
+            </div>
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">❤️</div>
+      <h3>No saved places yet</h3>
+      <p>Tap the heart icon on any place to save it here</p>
+      <a href="{{ url_for('explore') }}" class="btn btn-primary mt-20">EXPLORE VIBES</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
