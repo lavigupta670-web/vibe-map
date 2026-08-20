@@ -12,7 +12,7 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
-    profile_photo = db.Column(db.String(256), default='default_profile.png')
+    profile_photo = db.Column(db.String(500), default='default_profile.png')
     is_admin = db.Column(db.Boolean, default=False)
     is_banned = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
@@ -104,7 +104,8 @@ class VibePhoto(db.Model):
     __tablename__ = 'vibe_photos'
     id = db.Column(db.Integer, primary_key=True)
     vibe_check_id = db.Column(db.Integer, db.ForeignKey('vibe_checks.id'), nullable=False)
-    filename = db.Column(db.String(256), nullable=False)
+    filename = db.Column(db.String(500), nullable=False)  # Changed: Now stores Cloudinary URL
+    public_id = db.Column(db.String(200))  # NEW: For deleting from Cloudinary
 
 
 class VibeTag(db.Model):

@@ -4,7 +4,7 @@ import math
 from io import BytesIO
 from datetime import datetime, timezone
 from flask import (Flask, render_template, redirect, url_for, flash, request,
-                   jsonify, abort, send_from_directory, current_app)
+                   jsonify, abort, current_app)
 from flask_login import (LoginManager, login_user, logout_user, login_required,
                          current_user)
 from flask_wtf.csrf import CSRFProtect
@@ -12,6 +12,10 @@ from werkzeug.utils import secure_filename
 from PIL import Image
 from sqlalchemy import func
 import requests
+
+import cloudinary
+from cloudinary.uploader import upload
+from cloudinary.api import delete_resources
 
 from config import Config
 from models import (db, User, Place, VibeCheck, VibeTag, VibeCheckTag,
@@ -22,9 +26,13 @@ def create_app():
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(Config)
 
-    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'profiles'), exist_ok=True)
-    os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'vibes'), exist_ok=True)
+    # Configure Cloudinary
+    cloudinary.config(
+        cloud_name=app.config['CLOUDINARY_CLOUD_NAME'],
+        api_key=app.config['CLOUDINARY_API_KEY'],
+        api_secret=app.config['CLOUDINARY_API_SECRET'],
+        secure=True
+    )
 
     db.init_app(app)
     csrf = CSRFProtect(app)
@@ -54,14 +62,34 @@ def create_app():
         buf.seek(0)
         return buf
 
-    def save_upload(fileobj, folder='vibes'):
-        ext = fileobj.filename.rsplit('.', 1)[1].lower()
-        fname = f"{uuid.uuid4().hex}.{ext}"
-        processed = process_image(fileobj)
-        path = os.path.join(app.config['UPLOAD_FOLDER'], folder, fname)
-        with open(path, 'wb') as f:
-            f.write(processed.read())
-        return f"{folder}/{fname}"
+    def upload_to_cloudinary(fileobj, folder='vibes'):
+        try:
+            processed = process_image(fileobj)
+            result = upload(
+                processed,
+                folder=f"{app.config['CLOUDINARY_FOLDER']}/{folder}",
+                format='jpg',
+                quality='auto:good',
+                width=1200,
+                height=1200,
+                crop='limit',
+                eager=[{'width': 400, 'height': 400, 'crop': 'limit'}]
+            )
+            return {
+                'url': result.get('secure_url'),
+                'thumbnail': result.get('eager', [{}])[0].get('secure_url') if result.get('eager') else result.get('secure_url'),
+                'public_id': result.get('public_id')
+            }
+        except Exception as e:
+            print(f"Cloudinary upload error: {e}")
+            return None
+
+    def delete_from_cloudinary(public_id):
+        try:
+            if public_id:
+                delete_resources([public_id])
+        except Exception as e:
+            print(f"Cloudinary delete error: {e}")
 
     def haversine(lat1, lon1, lat2, lon2):
         R = 6371000
@@ -247,19 +275,18 @@ def create_app():
                 text += "📍 Location Verified\n"
             if vc.review_text:
                 text += f"\n💬 \"{vc.review_text}\""
-            base_url = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '')
-            if base_url:
-                base_url = f"https://{base_url}"
-            if photo:
-                photo_url = f"{base_url}/uploads/{photo.filename}"
-                resp = requests.post(
+            
+            photo_url = photo.filename if photo else None
+            
+            if photo_url:
+                requests.post(
                     f"https://api.telegram.org/bot{bot_token}/sendPhoto",
                     data={'chat_id': channel_id, 'photo': photo_url,
                           'caption': text, 'parse_mode': 'HTML'},
                     timeout=10
                 )
             else:
-                resp = requests.post(
+                requests.post(
                     f"https://api.telegram.org/bot{bot_token}/sendMessage",
                     data={'chat_id': channel_id, 'text': text, 'parse_mode': 'HTML'},
                     timeout=10
@@ -498,9 +525,14 @@ def create_app():
             db.session.flush()
 
             for pf in photo_files:
-                filename = save_upload(pf, 'vibes')
-                vp = VibePhoto(vibe_check_id=vc.id, filename=filename)
-                db.session.add(vp)
+                result = upload_to_cloudinary(pf, 'vibes')
+                if result:
+                    vp = VibePhoto(
+                        vibe_check_id=vc.id,
+                        filename=result['url'],
+                        public_id=result['public_id']
+                    )
+                    db.session.add(vp)
 
             for tid in selected_tags:
                 vct = VibeCheckTag(vibe_check_id=vc.id, tag_id=int(tid))
@@ -649,7 +681,9 @@ def create_app():
 
             photo = request.files.get('profile_photo')
             if photo and photo.filename and allowed_file(photo.filename):
-                user.profile_photo = save_upload(photo, 'profiles')
+                result = upload_to_cloudinary(photo, 'profiles')
+                if result:
+                    user.profile_photo = result['url']
 
             db.session.add(user)
             db.session.commit()
@@ -707,11 +741,12 @@ def create_app():
         if not current_user.is_admin:
             abort(403)
         vc = VibeCheck.query.get_or_404(vid)
+        
         for p in vc.photos:
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], p.filename)
-            if os.path.exists(filepath):
-                os.remove(filepath)
+            if p.public_id:
+                delete_from_cloudinary(p.public_id)
             db.session.delete(p)
+        
         VibeCheckTag.query.filter_by(vibe_check_id=vid).delete()
         Report.query.filter_by(vibe_check_id=vid).delete()
         db.session.delete(vc)
@@ -740,12 +775,6 @@ def create_app():
         db.session.commit()
         flash('Report resolved', 'info')
         return redirect(url_for('admin'))
-
-    # ---- Upload serving ----
-
-    @app.route('/uploads/<path:filename>')
-    def uploaded_file(filename):
-        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
     # ---- API endpoints for JS ----
 
