@@ -19,7 +19,8 @@ class User(UserMixin, db.Model):
     last_seen = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
-    vibe_checks = db.relationship('VibeCheck', backref='user', lazy='dynamic')
+    vibe_checks = db.relationship('VibeCheck', backref='user', lazy='dynamic',
+                                  foreign_keys='VibeCheck.user_id')
     saved_places = db.relationship('SavedPlace', backref='user', lazy='dynamic')
     reports = db.relationship('Report', backref='user', lazy='dynamic')
 
@@ -103,7 +104,7 @@ class VibeCheck(db.Model):
     location_verified = db.Column(db.Boolean, default=False)
     status = db.Column(db.String(20), default='approved')
     reviewed_at = db.Column(db.DateTime)
-    reviewed_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    reviewed_by = db.Column(db.Integer)  # NO foreign key - just store the ID
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     photos = db.relationship('VibePhoto', backref='vibe_check', lazy='dynamic',
