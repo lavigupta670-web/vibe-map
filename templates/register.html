@@ -14,13 +14,34 @@
 
       <div class="form-group" style="text-align:center;">
         <label class="form-label">Profile Photo (optional)</label>
-        <div class="profile-upload" style="display:inline-block;">
-          <img id="profilePreview" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a1a' width='100' height='100'/><text x='50' y='60' text-anchor='middle' fill='%23555' font-size='36'>👤</text></svg>"
-               alt="Profile" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid var(--border);">
-          <input type="file" name="profile_photo" accept="image/jpeg,image/png,image/webp"
-                 onchange="document.getElementById('profilePreview').src=URL.createObjectURL(this.files[0])">
-          <div class="profile-upload-overlay">📷</div>
+        <div class="profile-upload" 
+             id="profileUploadArea"
+             onclick="document.getElementById('profilePhotoInput').click()"
+             style="display:inline-block; position:relative; cursor:pointer;">
+          <img id="profilePreview" 
+               src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a1a' width='100' height='100'/><text x='50' y='60' text-anchor='middle' fill='%23555' font-size='36'>👤</text></svg>"
+               alt="Profile" 
+               style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid var(--border); display:block;">
+          <div class="profile-upload-overlay" style="
+            position:absolute;
+            bottom:0;
+            left:0;
+            right:0;
+            background:rgba(0,0,0,0.7);
+            color:white;
+            font-size:18px;
+            padding:4px 0;
+            border-radius:0 0 40px 40px;
+            pointer-events:none;
+          ">📷</div>
         </div>
+        <input type="file" 
+               id="profilePhotoInput"
+               name="profile_photo" 
+               accept="image/jpeg,image/png,image/webp"
+               style="display:none;"
+               onchange="handleProfilePhoto(this)">
+        <div id="photoStatus" style="font-size:11px; color:var(--muted); margin-top:6px;">Tap to add</div>
       </div>
 
       <div class="form-group">
@@ -51,4 +72,25 @@
     </p>
   </div>
 </div>
+
+<script>
+function handleProfilePhoto(input) {
+  if (!input.files || !input.files[0]) return;
+  
+  var file = input.files[0];
+  
+  if (file.size > 5 * 1024 * 1024) {
+    alert('Image must be under 5MB');
+    input.value = '';
+    return;
+  }
+  
+  var preview = document.getElementById('profilePreview');
+  preview.src = URL.createObjectURL(file);
+  
+  var status = document.getElementById('photoStatus');
+  status.textContent = '✓ ' + file.name;
+  status.style.color = '#4CAF50';
+}
+</script>
 {% endblock %}
