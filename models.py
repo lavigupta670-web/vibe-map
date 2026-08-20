@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -12,9 +12,11 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
-    profile_photo = db.Column(db.String(500), default='default_profile.png')
+    profile_photo = db.Column(db.String(500), default='')
     is_admin = db.Column(db.Boolean, default=False)
     is_banned = db.Column(db.Boolean, default=False)
+    is_active = db.Column(db.Boolean, default=True)
+    last_seen = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     vibe_checks = db.relationship('VibeCheck', backref='user', lazy='dynamic')
@@ -26,6 +28,12 @@ class User(UserMixin, db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+    
+    @property
+    def is_online(self):
+        if not self.last_seen:
+            return False
+        return datetime.now(timezone.utc) - self.last_seen < timedelta(minutes=5)
 
 
 class Place(db.Model):
@@ -49,7 +57,9 @@ class Place(db.Model):
 
     @property
     def vibe_score(self):
-        checks = self.vibe_checks.all()
+        checks = self.vibe_checks.filter(
+            db.or_(VibeCheck.status == 'approved', VibeCheck.status.is_(None))
+        ).all()
         if not checks:
             return None
         avg = sum(c.rating for c in checks) / len(checks)
@@ -63,7 +73,9 @@ class Place(db.Model):
 
     @property
     def vibe_score_label(self):
-        count = self.vibe_checks.count()
+        count = self.vibe_checks.filter(
+            db.or_(VibeCheck.status == 'approved', VibeCheck.status.is_(None))
+        ).count()
         if count == 0:
             return 'NO VIBES YET'
         if count <= 4:
@@ -74,7 +86,9 @@ class Place(db.Model):
 
     @property
     def vibe_check_count(self):
-        return self.vibe_checks.count()
+        return self.vibe_checks.filter(
+            db.or_(VibeCheck.status == 'approved', VibeCheck.status.is_(None))
+        ).count()
 
 
 class VibeCheck(db.Model):
@@ -87,10 +101,13 @@ class VibeCheck(db.Model):
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
     location_verified = db.Column(db.Boolean, default=False)
+    status = db.Column(db.String(20), default='approved')
+    reviewed_at = db.Column(db.DateTime)
+    reviewed_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     photos = db.relationship('VibePhoto', backref='vibe_check', lazy='dynamic',
-                             order_by='VibePhoto.id')
+                             order_by='VibePhoto.id', cascade='all, delete-orphan')
     tags = db.relationship('VibeTag', secondary='vibe_check_tags', backref='vibe_checks', lazy='dynamic')
     reports = db.relationship('Report', backref='vibe_check', lazy='dynamic')
 
@@ -104,8 +121,8 @@ class VibePhoto(db.Model):
     __tablename__ = 'vibe_photos'
     id = db.Column(db.Integer, primary_key=True)
     vibe_check_id = db.Column(db.Integer, db.ForeignKey('vibe_checks.id'), nullable=False)
-    filename = db.Column(db.String(500), nullable=False)  # Changed: Now stores Cloudinary URL
-    public_id = db.Column(db.String(200))  # NEW: For deleting from Cloudinary
+    filename = db.Column(db.String(500), nullable=False)
+    public_id = db.Column(db.String(200))
 
 
 class VibeTag(db.Model):
