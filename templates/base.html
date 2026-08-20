@@ -28,9 +28,14 @@
       {% if current_user.is_authenticated %}
         <a href="{{ url_for('saved') }}">Saved</a>
         <a href="{{ url_for('profile', username=current_user.username) }}">
-          <img src="{{ url_for('uploaded_file', filename=current_user.profile_photo) }}"
+          {% if current_user.profile_photo and current_user.profile_photo.startswith('http') %}
+          <img src="{{ current_user.profile_photo }}"
                alt="{{ current_user.username }}" class="nav-avatar"
                onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><rect fill=%22%231a1a1a%22 width=%2240%22 height=%2240%22/><text x=%2220%22 y=%2226%22 text-anchor=%22middle%22 fill=%22%23ff6b35%22 font-size=%2218%22>👤</text></svg>'">
+          {% else %}
+          <img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><rect fill='%231a1a1a' width='40' height='40'/><text x='20' y='26' text-anchor='middle' fill='%23ff6b35' font-size='18'>👤</text></svg>"
+               alt="{{ current_user.username }}" class="nav-avatar">
+          {% endif %}
         </a>
         {% if current_user.is_admin %}
           <a href="{{ url_for('admin') }}">Admin</a>
