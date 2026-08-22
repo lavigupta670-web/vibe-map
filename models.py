@@ -34,7 +34,11 @@ class User(UserMixin, db.Model):
     def is_online(self):
         if not self.last_seen:
             return False
-        return datetime.now(timezone.utc) - self.last_seen < timedelta(minutes=5)
+        now = datetime.now(timezone.utc)
+        last = self.last_seen
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        return (now - last) < timedelta(minutes=5)
 
 
 class Place(db.Model):
@@ -59,7 +63,7 @@ class Place(db.Model):
     @property
     def vibe_score(self):
         checks = self.vibe_checks.filter(
-            db.or_(VibeCheck.status == 'approved', VibeCheck.status.is_(None))
+            VibeCheck.status == 'approved'
         ).all()
         if not checks:
             return None
@@ -75,7 +79,7 @@ class Place(db.Model):
     @property
     def vibe_score_label(self):
         count = self.vibe_checks.filter(
-            db.or_(VibeCheck.status == 'approved', VibeCheck.status.is_(None))
+            VibeCheck.status == 'approved'
         ).count()
         if count == 0:
             return 'NO VIBES YET'
@@ -88,7 +92,7 @@ class Place(db.Model):
     @property
     def vibe_check_count(self):
         return self.vibe_checks.filter(
-            db.or_(VibeCheck.status == 'approved', VibeCheck.status.is_(None))
+            VibeCheck.status == 'approved'
         ).count()
 
 
@@ -102,10 +106,11 @@ class VibeCheck(db.Model):
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
     location_verified = db.Column(db.Boolean, default=False)
-    status = db.Column(db.String(20), default='approved')
+    status = db.Column(db.String(20), default='pending')
     reviewed_at = db.Column(db.DateTime)
-    reviewed_by = db.Column(db.Integer)  # NO foreign key - just store the ID
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    reviewed_by = db.Column(db.Integer)
+    telegram_message_id = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
     photos = db.relationship('VibePhoto', backref='vibe_check', lazy='dynamic',
                              order_by='VibePhoto.id', cascade='all, delete-orphan')

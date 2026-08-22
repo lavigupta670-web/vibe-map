@@ -2,8 +2,53 @@
 {% block title %}{{ place.name }} — VIBE MAP{% endblock %}
 
 {% block content %}
-<div style="padding:12px 16px 0;">
-  <a href="{{ url_for('index') }}" style="color:var(--muted);font-size:14px;font-weight:600;text-decoration:none;">← Home</a>
+
+<!-- Top Navigation Bar -->
+<div style="
+  position:sticky;
+  top:0;
+  z-index:100;
+  background:var(--bg, #0a0a0a);
+  padding:12px 16px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  border-bottom:1px solid var(--border, #222);
+">
+  <a href="{{ url_for('index') }}" style="
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:36px;
+    height:36px;
+    border-radius:10px;
+    background:var(--card2, #1a1a1a);
+    color:var(--text, #fff);
+    text-decoration:none;
+    font-size:16px;
+  ">🏠</a>
+  <a href="javascript:history.back()" style="
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:36px;
+    height:36px;
+    border-radius:10px;
+    background:var(--card2, #1a1a1a);
+    color:var(--text, #fff);
+    text-decoration:none;
+    font-size:18px;
+  ">←</a>
+  <div style="flex:1;min-width:0;">
+    <div style="
+      font-size:14px;
+      font-weight:700;
+      color:var(--text, #fff);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    ">{{ place.name }}</div>
+  </div>
 </div>
 
 <div class="place-hero">
@@ -80,14 +125,9 @@
     <div class="vibe-card">
       <div class="vibe-card-header">
         <a href="{{ url_for('profile', username=vc.user.username) }}" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit;">
-          {% if vc.user.profile_photo and vc.user.profile_photo.startswith('http') %}
-          <img class="vibe-avatar" src="{{ vc.user.profile_photo }}"
-               alt="{{ vc.user.username }}"
-               onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><rect fill=%22%231a1a1a%22 width=%2240%22 height=%2240%22/><text x=%2220%22 y=%2226%22 text-anchor=%22middle%22 fill=%22%23ff6b35%22 font-size=%2218%22>👤</text></svg>'">
-          {% else %}
-          <img class="vibe-avatar" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><rect fill='%231a1a1a' width='40' height='40'/><text x='20' y='26' text-anchor='middle' fill='%23ff6b35' font-size='18'>👤</text></svg>"
+          <img class="vibe-avatar" 
+               src="{% if vc.user.profile_photo and 'http' in (vc.user.profile_photo or '') %}{{ vc.user.profile_photo }}{% else %}data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><rect fill='%231a1a1a' width='40' height='40'/><text x='20' y='26' text-anchor='middle' fill='%23ff6b35' font-size='18'>👤</text></svg>{% endif %}"
                alt="{{ vc.user.username }}">
-          {% endif %}
           <div class="vibe-user-info">
             <div class="vibe-username">{{ vc.user.username }}</div>
             <div class="vibe-date">{{ vc.created_at.strftime('%b %d, %Y') }}</div>
@@ -99,13 +139,13 @@
       {% if vc.photos.count() > 1 %}
         <div style="display:grid;grid-template-columns:repeat({% if vc.photos.count() >= 3 %}3{% else %}2{% endif %}, 1fr);gap:4px;margin-bottom:14px;border-radius:var(--radius-sm);overflow:hidden;">
           {% for photo in vc.photos %}
-            <img src="{{ photo.filename }}" data-lightbox loading="lazy"
+            <img src="{{ photo.filename or '' }}" data-lightbox loading="lazy"
                  style="width:100%;aspect-ratio:1;object-fit:cover;cursor:pointer;"
                  onerror="this.style.display='none'">
           {% endfor %}
         </div>
       {% elif vc.photos.count() == 1 %}
-        <img class="vibe-photo" src="{{ vc.first_photo }}"
+        <img class="vibe-photo" src="{{ vc.first_photo or '' }}"
              alt="Vibe Check" data-lightbox loading="lazy"
              onerror="this.style.display='none'">
       {% endif %}
@@ -141,4 +181,27 @@
     </div>
   {% endif %}
 </div>
+
+<!-- Bottom Home Button (mobile) -->
+<div style="
+  position:fixed;
+  bottom:80px;
+  right:16px;
+  z-index:99;
+">
+  <a href="{{ url_for('index') }}" style="
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:50px;
+    height:50px;
+    border-radius:50%;
+    background:var(--accent, #ff6b35);
+    color:white;
+    text-decoration:none;
+    font-size:22px;
+    box-shadow:0 4px 15px rgba(255,107,53,0.4);
+  ">🏠</a>
+</div>
+
 {% endblock %}

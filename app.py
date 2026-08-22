@@ -1,10 +1,13 @@
 import os
+import json
 import uuid
 import math
+import threading
+import time
 from io import BytesIO
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from flask import (Flask, render_template, redirect, url_for, flash, request,
-                   jsonify, abort, current_app)
+                   jsonify, abort, send_from_directory, current_app)
 from flask_login import (LoginManager, login_user, logout_user, login_required,
                          current_user)
 from flask_wtf.csrf import CSRFProtect
@@ -14,8 +17,8 @@ from sqlalchemy import func
 import requests
 
 import cloudinary
-from cloudinary.uploader import upload
-from cloudinary.api import delete_resources
+from cloudinary.uploader import upload as cloudinary_upload
+from cloudinary.api import delete_resources as cloudinary_delete
 
 from config import Config
 from models import (db, User, Place, VibeCheck, VibeTag, VibeCheckTag,
@@ -26,13 +29,17 @@ def create_app():
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(Config)
 
-    # Configure Cloudinary
-    cloudinary.config(
-        cloud_name=app.config['CLOUDINARY_CLOUD_NAME'],
-        api_key=app.config['CLOUDINARY_API_KEY'],
-        api_secret=app.config['CLOUDINARY_API_SECRET'],
-        secure=True
-    )
+    if app.config.get('CLOUDINARY_CLOUD_NAME'):
+        cloudinary.config(
+            cloud_name=app.config['CLOUDINARY_CLOUD_NAME'],
+            api_key=app.config['CLOUDINARY_API_KEY'],
+            api_secret=app.config['CLOUDINARY_API_SECRET'],
+            secure=True
+        )
+
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'profiles'), exist_ok=True)
+    os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'vibes'), exist_ok=True)
 
     db.init_app(app)
     csrf = CSRFProtect(app)
@@ -44,7 +51,7 @@ def create_app():
 
     @login_manager.user_loader
     def load_user(user_id):
-        return User.query.get(int(user_id))
+        return db.session.get(User, int(user_id))
 
     # ---- Helpers ----
 
@@ -63,33 +70,57 @@ def create_app():
         return buf
 
     def upload_to_cloudinary(fileobj, folder='vibes'):
+        if not app.config.get('CLOUDINARY_CLOUD_NAME'):
+            return None
         try:
             processed = process_image(fileobj)
-            result = upload(
+            result = cloudinary_upload(
                 processed,
                 folder=f"{app.config['CLOUDINARY_FOLDER']}/{folder}",
                 format='jpg',
                 quality='auto:good',
                 width=1200,
                 height=1200,
-                crop='limit',
-                eager=[{'width': 400, 'height': 400, 'crop': 'limit'}]
+                crop='limit'
             )
             return {
                 'url': result.get('secure_url'),
-                'thumbnail': result.get('eager', [{}])[0].get('secure_url') if result.get('eager') else result.get('secure_url'),
                 'public_id': result.get('public_id')
             }
         except Exception as e:
             print(f"Cloudinary upload error: {e}")
             return None
 
-    def delete_from_cloudinary(public_id):
-        try:
-            if public_id:
-                delete_resources([public_id])
-        except Exception as e:
-            print(f"Cloudinary delete error: {e}")
+    def save_to_local(fileobj, folder='vibes'):
+        ext = fileobj.filename.rsplit('.', 1)[1].lower()
+        fname = f"{uuid.uuid4().hex}.{ext}"
+        folder_path = os.path.join(app.config['UPLOAD_FOLDER'], folder)
+        os.makedirs(folder_path, exist_ok=True)
+        path = os.path.join(folder_path, fname)
+        processed = process_image(fileobj)
+        with open(path, 'wb') as f:
+            f.write(processed.read())
+        return {'url': f"/uploads/{folder}/{fname}", 'public_id': None}
+
+    def save_photo(fileobj, folder='vibes'):
+        result = upload_to_cloudinary(fileobj, folder)
+        if result:
+            return result
+        return save_to_local(fileobj, folder)
+
+    def delete_photo(public_id):
+        if public_id and app.config.get('CLOUDINARY_CLOUD_NAME'):
+            try:
+                cloudinary_delete([public_id])
+            except Exception:
+                pass
+        elif public_id and public_id.startswith('/uploads/'):
+            try:
+                filepath = public_id[1:]
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+            except Exception:
+                pass
 
     def haversine(lat1, lon1, lat2, lon2):
         R = 6371000
@@ -155,9 +186,7 @@ def create_app():
             data = resp.json()
             if data.get('status') != 'OK' and not data.get('next_page_token'):
                 return [], None
-            results = data.get('results', [])
-            next_token = data.get('next_page_token')
-            return results, next_token
+            return data.get('results', []), data.get('next_page_token')
         except Exception:
             return [], None
 
@@ -255,44 +284,151 @@ def create_app():
                 db.session.add(VibeTag(name=name, emoji=emoji))
         db.session.commit()
 
+    # ---- Telegram Helpers ----
+
     def send_telegram_notification(vc, place):
         bot_token = app.config.get('TELEGRAM_BOT_TOKEN', '')
         channel_id = app.config.get('TELEGRAM_CHANNEL_ID', '')
+
         if not bot_token or not channel_id:
             return
+
         try:
             photo = vc.photos.first()
-            cat_label = {'chai': '☕ Chai', 'cafe': '☕ Café',
-                         'restaurant': '🍽️ Restaurant', 'hangout': '🎉 Hangout'}
+            cat_emoji = {'chai': '☕', 'cafe': '☕', 'restaurant': '🍽️', 'hangout': '🎉'}
+
+            tag_list = ' '.join([f"#{t.name.replace(' ', '')}" for t in vc.tags])
+
             text = (
                 f"🔥 <b>NEW VIBE CHECK</b>\n\n"
-                f"📍 {place.name}\n"
-                f"{cat_label.get(place.category, '')}\n"
+                f"📍 <b>{place.name}</b>\n"
+                f"{cat_emoji.get(place.category, '')} {place.category.title()}\n"
                 f"⭐ {vc.rating}/5\n"
                 f"👤 {vc.user.username}\n"
             )
+
             if vc.location_verified:
-                text += "📍 Location Verified\n"
+                text += "✅ Location Verified\n"
             if vc.review_text:
-                text += f"\n💬 \"{vc.review_text}\""
-            
-            photo_url = photo.filename if photo else None
-            
-            if photo_url:
-                requests.post(
-                    f"https://api.telegram.org/bot{bot_token}/sendPhoto",
-                    data={'chat_id': channel_id, 'photo': photo_url,
-                          'caption': text, 'parse_mode': 'HTML'},
-                    timeout=10
-                )
+                text += f"\n💬 \"{vc.review_text}\"\n"
+            if tag_list:
+                text += f"\n{tag_list}\n"
+
+            text += f"\n⏳ <b>Status: PENDING APPROVAL</b>"
+
+            keyboard = json.dumps({
+                'inline_keyboard': [
+                    [
+                        {'text': '✅ APPROVE', 'callback_data': f'approve_{vc.id}'},
+                        {'text': '❌ REJECT',  'callback_data': f'reject_{vc.id}'}
+                    ]
+                ]
+            })
+
+            base_url = f"https://api.telegram.org/bot{bot_token}"
+
+            if photo and photo.filename:
+                photo_path = photo.filename
+                if photo_path.startswith('/uploads/'):
+                    full_path = os.path.join(os.getcwd(), photo_path.lstrip('/'))
+                    if os.path.exists(full_path):
+                        with open(full_path, 'rb') as f:
+                            resp = requests.post(
+                                f"{base_url}/sendPhoto",
+                                data={
+                                    'chat_id': channel_id,
+                                    'caption': text,
+                                    'parse_mode': 'HTML',
+                                    'reply_markup': keyboard
+                                },
+                                files={'photo': f},
+                                timeout=15
+                            )
+                    else:
+                        resp = requests.post(
+                            f"{base_url}/sendPhoto",
+                            data={
+                                'chat_id': channel_id,
+                                'photo': photo_path,
+                                'caption': text,
+                                'parse_mode': 'HTML',
+                                'reply_markup': keyboard
+                            },
+                            timeout=15
+                        )
+                else:
+                    resp = requests.post(
+                        f"{base_url}/sendPhoto",
+                        data={
+                            'chat_id': channel_id,
+                            'photo': photo_path,
+                            'caption': text,
+                            'parse_mode': 'HTML',
+                            'reply_markup': keyboard
+                        },
+                        timeout=15
+                    )
             else:
-                requests.post(
-                    f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                    data={'chat_id': channel_id, 'text': text, 'parse_mode': 'HTML'},
-                    timeout=10
+                resp = requests.post(
+                    f"{base_url}/sendMessage",
+                    data={
+                        'chat_id': channel_id,
+                        'text': text,
+                        'parse_mode': 'HTML',
+                        'reply_markup': keyboard
+                    },
+                    timeout=15
                 )
-        except Exception:
-            pass
+
+            if resp.status_code == 200:
+                result = resp.json().get('result', {})
+                msg_id = result.get('message_id')
+                if msg_id:
+                    vc.telegram_message_id = msg_id
+                    db.session.commit()
+
+        except Exception as e:
+            print(f"Telegram notification error: {e}")
+
+    def answer_callback_query(callback_query_id, text, show_alert=False):
+        bot_token = app.config.get('TELEGRAM_BOT_TOKEN', '')
+        if not bot_token:
+            return
+        try:
+            requests.post(
+                f"https://api.telegram.org/bot{bot_token}/answerCallbackQuery",
+                data={
+                    'callback_query_id': callback_query_id,
+                    'text': text,
+                    'show_alert': show_alert
+                },
+                timeout=10
+            )
+        except Exception as e:
+            print(f"Telegram answerCallbackQuery error: {e}")
+
+    def edit_telegram_message(chat_id, message_id, text, reply_markup=None):
+        bot_token = app.config.get('TELEGRAM_BOT_TOKEN', '')
+        if not bot_token:
+            return
+        try:
+            data = {
+                'chat_id': chat_id,
+                'message_id': message_id,
+                'text': text,
+                'parse_mode': 'HTML'
+            }
+            if reply_markup:
+                data['reply_markup'] = reply_markup
+            else:
+                data['reply_markup'] = json.dumps({'inline_keyboard': []})
+            requests.post(
+                f"https://api.telegram.org/bot{bot_token}/editMessageText",
+                data=data,
+                timeout=10
+            )
+        except Exception as e:
+            print(f"Telegram editMessageText error: {e}")
 
     # ---- Context Processor ----
 
@@ -304,6 +440,14 @@ def create_app():
             'jaipur_areas': JAIPUR_AREAS,
         }
 
+    # ---- Update last seen ----
+
+    @app.before_request
+    def update_last_seen():
+        if current_user.is_authenticated:
+            current_user.last_seen = datetime.now(timezone.utc)
+            db.session.commit()
+
     # ---- Routes ----
 
     @app.route('/')
@@ -313,16 +457,14 @@ def create_app():
 
         trending = []
         if lat and lng:
-            places = Place.query.filter(
-                Place.vibe_checks.any()
-            ).all()
+            places = Place.query.filter(Place.vibe_checks.any(VibeCheck.status == 'approved')).all()
             scored = []
             for p in places:
                 dist = haversine(lat, lng, p.latitude, p.longitude) if p.latitude and p.longitude else 99999
                 if dist > 15000:
                     continue
                 vc_count = p.vibe_check_count
-                recent = p.vibe_checks.order_by(VibeCheck.created_at.desc()).first()
+                recent = p.vibe_checks.filter_by(status='approved').order_by(VibeCheck.created_at.desc()).first()
                 recency = 0
                 if recent:
                     hours = (datetime.now(timezone.utc) - recent.created_at).total_seconds() / 3600
@@ -335,7 +477,7 @@ def create_app():
             vc_count_sub = db.session.query(
                 VibeCheck.place_id,
                 func.count(VibeCheck.id).label('cnt')
-            ).group_by(VibeCheck.place_id).subquery()
+            ).filter(VibeCheck.status == 'approved').group_by(VibeCheck.place_id).subquery()
 
             places = db.session.query(Place).join(
                 vc_count_sub, Place.id == vc_count_sub.c.place_id
@@ -354,15 +496,9 @@ def create_app():
         if not area:
             abort(404)
 
-        lat = area['lat']
-        lng = area['lng']
+        lat, lng = area['lat'], area['lng']
         filter_cat = request.args.get('category', '').strip()
-
-        cats_to_search = []
-        if filter_cat and filter_cat in CATEGORY_MAP:
-            cats_to_search = [filter_cat]
-        else:
-            cats_to_search = list(CATEGORY_MAP.keys())
+        cats_to_search = [filter_cat] if filter_cat and filter_cat in CATEGORY_MAP else list(CATEGORY_MAP.keys())
 
         all_results = []
         for cat_key in cats_to_search:
@@ -374,16 +510,11 @@ def create_app():
                 dist = haversine(lat, lng, place.latitude, place.longitude) if place.latitude and place.longitude else 0
                 all_results.append((place, dist))
 
-        all_results.sort(
-            key=lambda x: ((x[0].vibe_score or 0) * 10 + (x[0].google_rating or 0) * 5 - x[1] * 0.001),
-            reverse=True
-        )
+        all_results.sort(key=lambda x: ((x[0].vibe_score or 0) * 10 + (x[0].google_rating or 0) * 5 - x[1] * 0.001), reverse=True)
 
-        return render_template('search.html', results=all_results, q='',
-                               cat='', lat=lat, lng=lng, page=1,
-                               next_page_token=None, has_results=len(all_results) > 0,
-                               base_params={},
-                               area_name=area['name'], area_emoji=area['emoji'],
+        return render_template('search.html', results=all_results, q='', cat='', lat=lat, lng=lng,
+                               page=1, next_page_token=None, has_results=len(all_results) > 0,
+                               base_params={}, area_name=area['name'], area_emoji=area['emoji'],
                                filter_cat=filter_cat)
 
     @app.route('/search')
@@ -395,9 +526,7 @@ def create_app():
         page_token = request.args.get('page_token', '').strip()
         page = request.args.get('page', 1, type=int)
 
-        results = []
-        next_page_token = None
-        has_results = False
+        results, next_page_token, has_results = [], None, False
 
         if q or cat:
             if cat in CATEGORY_MAP:
@@ -417,24 +546,17 @@ def create_app():
                 if lat and lng and place.latitude and place.longitude:
                     dist = haversine(lat, lng, place.latitude, place.longitude)
                 results.append((place, dist))
-
             has_results = len(results) > 0
 
         base_params = {}
-        if q:
-            base_params['q'] = q
-        if cat:
-            base_params['category'] = cat
-        if lat:
-            base_params['lat'] = lat
-        if lng:
-            base_params['lng'] = lng
+        if q: base_params['q'] = q
+        if cat: base_params['category'] = cat
+        if lat: base_params['lat'] = lat
+        if lng: base_params['lng'] = lng
 
-        return render_template('search.html', results=results, q=q, cat=cat,
-                               lat=lat, lng=lng, page=page,
-                               next_page_token=next_page_token,
-                               has_results=has_results,
-                               base_params=base_params)
+        return render_template('search.html', results=results, q=q, cat=cat, lat=lat, lng=lng,
+                               page=page, next_page_token=next_page_token,
+                               has_results=has_results, base_params=base_params)
 
     @app.route('/place/<google_place_id>')
     def place(google_place_id):
@@ -451,23 +573,20 @@ def create_app():
                 place.photo_reference = details['photos'][0].get('photo_reference', '')
                 db.session.commit()
 
-        vibes = place.vibe_checks.order_by(VibeCheck.created_at.desc()).all()
+        vibes = place.vibe_checks.filter_by(status='approved').order_by(VibeCheck.created_at.desc()).all()
         is_saved = False
         if current_user.is_authenticated:
-            is_saved = SavedPlace.query.filter_by(
-                user_id=current_user.id, place_id=place.id).first() is not None
+            is_saved = SavedPlace.query.filter_by(user_id=current_user.id, place_id=place.id).first() is not None
 
         photo_url = google_photo_url(place.photo_reference, 800)
-
         lat = request.args.get('lat', type=float)
         lng = request.args.get('lng', type=float)
         dist = None
         if lat and lng and place.latitude and place.longitude:
             dist = haversine(lat, lng, place.latitude, place.longitude)
 
-        return render_template('place.html', place=place, vibes=vibes,
-                               is_saved=is_saved, photo_url=photo_url,
-                               dist=dist, lat=lat, lng=lng)
+        return render_template('place.html', place=place, vibes=vibes, is_saved=is_saved,
+                               photo_url=photo_url, dist=dist, lat=lat, lng=lng)
 
     @app.route('/vibe_check/<google_place_id>', methods=['GET', 'POST'])
     @login_required
@@ -520,17 +639,18 @@ def create_app():
                 latitude=lat,
                 longitude=lng,
                 location_verified=loc_verified,
+                status='pending'
             )
             db.session.add(vc)
             db.session.flush()
 
             for pf in photo_files:
-                result = upload_to_cloudinary(pf, 'vibes')
+                result = save_photo(pf, 'vibes')
                 if result:
                     vp = VibePhoto(
                         vibe_check_id=vc.id,
                         filename=result['url'],
-                        public_id=result['public_id']
+                        public_id=result.get('public_id')
                     )
                     db.session.add(vp)
 
@@ -540,7 +660,7 @@ def create_app():
 
             db.session.commit()
             send_telegram_notification(vc, place)
-            flash('VIBE CHECK POSTED 🔥', 'success')
+            flash('Vibe check submitted! Pending review 🔥', 'success')
             return redirect(url_for('place', google_place_id=google_place_id))
 
         return render_template('vibe_check.html', place=place, tags=tags)
@@ -552,8 +672,7 @@ def create_app():
         lat = request.args.get('lat', type=float)
         lng = request.args.get('lng', type=float)
 
-        query = Place.query.filter(Place.vibe_checks.any())
-
+        query = Place.query.filter(Place.vibe_checks.any(VibeCheck.status == 'approved'))
         if cat in CATEGORY_MAP:
             query = query.filter_by(category=cat)
 
@@ -562,10 +681,8 @@ def create_app():
             places.sort(key=lambda p: p.vibe_score or 0, reverse=True)
         elif sort == 'checks':
             vc_count_sub = db.session.query(
-                VibeCheck.place_id,
-                func.count(VibeCheck.id).label('cnt')
-            ).group_by(VibeCheck.place_id).subquery()
-
+                VibeCheck.place_id, func.count(VibeCheck.id).label('cnt')
+            ).filter(VibeCheck.status == 'approved').group_by(VibeCheck.place_id).subquery()
             places = db.session.query(Place).join(
                 vc_count_sub, Place.id == vc_count_sub.c.place_id
             ).order_by(vc_count_sub.c.cnt.desc()).all()
@@ -574,17 +691,14 @@ def create_app():
             places.sort(key=lambda p: haversine(lat, lng, p.latitude or 0, p.longitude or 0))
         elif sort == 'recent':
             subq = db.session.query(
-                VibeCheck.place_id,
-                func.max(VibeCheck.created_at).label('latest')
-            ).group_by(VibeCheck.place_id).subquery()
+                VibeCheck.place_id, func.max(VibeCheck.created_at).label('latest')
+            ).filter(VibeCheck.status == 'approved').group_by(VibeCheck.place_id).subquery()
             places = (query.outerjoin(subq, Place.id == subq.c.place_id)
-                      .order_by(func.coalesce(subq.c.latest, Place.created_at).desc())
-                      .all())
+                      .order_by(func.coalesce(subq.c.latest, Place.created_at).desc()).all())
         else:
             places = query.all()
 
-        return render_template('explore.html', places=places, cat=cat,
-                               sort=sort, lat=lat, lng=lng)
+        return render_template('explore.html', places=places, cat=cat, sort=sort, lat=lat, lng=lng)
 
     @app.route('/save/<google_place_id>')
     @login_required
@@ -592,8 +706,7 @@ def create_app():
         place = Place.query.filter_by(google_place_id=google_place_id).first()
         if not place:
             abort(404)
-        existing = SavedPlace.query.filter_by(
-            user_id=current_user.id, place_id=place.id).first()
+        existing = SavedPlace.query.filter_by(user_id=current_user.id, place_id=place.id).first()
         if existing:
             db.session.delete(existing)
             db.session.commit()
@@ -608,17 +721,16 @@ def create_app():
     @app.route('/saved')
     @login_required
     def saved():
-        saved = SavedPlace.query.filter_by(user_id=current_user.id)\
-            .order_by(SavedPlace.created_at.desc()).all()
+        saved = SavedPlace.query.filter_by(user_id=current_user.id).order_by(SavedPlace.created_at.desc()).all()
         return render_template('saved.html', saved=saved)
 
     @app.route('/profile/<username>')
     def profile(username):
         user = User.query.filter_by(username=username).first_or_404()
-        vibes = VibeCheck.query.filter_by(user_id=user.id)\
-            .order_by(VibeCheck.created_at.desc()).all()
-        places_checked = db.session.query(Place.id).join(VibeCheck)\
-            .filter(VibeCheck.user_id == user.id).distinct().count()
+        vibes = VibeCheck.query.filter_by(user_id=user.id, status='approved').order_by(VibeCheck.created_at.desc()).all()
+        places_checked = db.session.query(Place.id).join(VibeCheck).filter(
+            VibeCheck.user_id == user.id, VibeCheck.status == 'approved'
+        ).distinct().count()
         cat_counts = {}
         for v in vibes:
             p = Place.query.get(v.place_id)
@@ -643,8 +755,7 @@ def create_app():
                 flash('Account banned.', 'error')
                 return redirect(url_for('login'))
             login_user(user, remember=True)
-            next_page = request.args.get('next')
-            return redirect(next_page or url_for('index'))
+            return redirect(request.args.get('next') or url_for('index'))
         return render_template('login.html')
 
     @app.route('/register', methods=['GET', 'POST'])
@@ -681,7 +792,7 @@ def create_app():
 
             photo = request.files.get('profile_photo')
             if photo and photo.filename and allowed_file(photo.filename):
-                result = upload_to_cloudinary(photo, 'profiles')
+                result = save_photo(photo, 'profiles')
                 if result:
                     user.profile_photo = result['url']
 
@@ -702,13 +813,11 @@ def create_app():
     def report(vibe_check_id):
         vc = VibeCheck.query.get_or_404(vibe_check_id)
         reason = request.form.get('reason', '').strip()
-        valid_reasons = ['Fake review', 'Wrong place', 'Inappropriate photo',
-                         'Spam', 'Offensive content', 'Other']
+        valid_reasons = ['Fake review', 'Wrong place', 'Inappropriate photo', 'Spam', 'Offensive content', 'Other']
         if reason not in valid_reasons:
             flash('Invalid report reason', 'error')
             return redirect(request.referrer or url_for('index'))
-        existing = Report.query.filter_by(
-            vibe_check_id=vc.id, user_id=current_user.id).first()
+        existing = Report.query.filter_by(vibe_check_id=vc.id, user_id=current_user.id).first()
         if existing:
             flash('Already reported', 'info')
             return redirect(request.referrer or url_for('index'))
@@ -718,6 +827,114 @@ def create_app():
         flash('Reported. We\'ll look into it.', 'info')
         return redirect(request.referrer or url_for('index'))
 
+    # ---- Telegram Polling ----
+
+    def telegram_poller():
+        bot_token = app.config.get('TELEGRAM_BOT_TOKEN', '')
+        if not bot_token:
+            return
+
+        base_url = f"https://api.telegram.org/bot{bot_token}"
+        offset = 0
+
+        time.sleep(3)
+        print("🔘 Telegram poller started...")
+
+        while True:
+            try:
+                resp = requests.get(
+                    f"{base_url}/getUpdates",
+                    params={'offset': offset, 'timeout': 10, 'allowed_updates': '["callback_query"]'},
+                    timeout=20
+                )
+                data = resp.json()
+
+                if not data.get('ok'):
+                    time.sleep(2)
+                    continue
+
+                for update in data.get('result', []):
+                    offset = update['update_id'] + 1
+
+                    callback_query = update.get('callback_query')
+                    if not callback_query:
+                        continue
+
+                    callback_data = callback_query.get('data', '')
+                    callback_id = callback_query.get('id')
+                    message = callback_query.get('message', {})
+                    chat_id = message.get('chat', {}).get('id')
+                    message_id = message.get('message_id')
+
+                    vc_id = None
+                    action = None
+
+                    if callback_data.startswith('approve_'):
+                        vc_id = int(callback_data.split('_')[1])
+                        action = 'approve'
+                    elif callback_data.startswith('reject_'):
+                        vc_id = int(callback_data.split('_')[1])
+                        action = 'reject'
+
+                    if vc_id and action:
+                        with app.app_context():
+                            vc = db.session.get(VibeCheck, vc_id)
+                            if not vc:
+                                answer_callback_query(callback_id, '❌ Not found', show_alert=True)
+                                continue
+
+                            if vc.status != 'pending':
+                                answer_callback_query(callback_id, f'Already {vc.status}!', show_alert=True)
+                                continue
+
+                            place = db.session.get(Place, vc.place_id)
+                            place_name = place.name if place else 'Unknown'
+                            username = vc.user.username if vc.user else 'Unknown'
+
+                            if action == 'approve':
+                                vc.status = 'approved'
+                                vc.reviewed_at = datetime.now(timezone.utc)
+                                db.session.commit()
+
+                                new_text = (
+                                    f"✅ <b>VIBE CHECK APPROVED</b>\n\n"
+                                    f"📍 <b>{place_name}</b>\n"
+                                    f"⭐ {vc.rating}/5\n"
+                                    f"👤 {username}\n"
+                                )
+                                if vc.review_text:
+                                    new_text += f"💬 \"{vc.review_text}\"\n"
+                                new_text += f"\n✅ Approved"
+
+                                edit_telegram_message(chat_id, message_id, new_text)
+                                answer_callback_query(callback_id, '✅ Approved!')
+
+                            elif action == 'reject':
+                                for photo in vc.photos:
+                                    delete_photo(photo.public_id)
+
+                                vc.status = 'rejected'
+                                vc.reviewed_at = datetime.now(timezone.utc)
+                                db.session.commit()
+
+                                new_text = (
+                                    f"❌ <b>VIBE CHECK REJECTED</b>\n\n"
+                                    f"📍 <b>{place_name}</b>\n"
+                                    f"⭐ {vc.rating}/5\n"
+                                    f"👤 {username}\n"
+                                    f"\n❌ Rejected — Photos deleted"
+                                )
+
+                                edit_telegram_message(chat_id, message_id, new_text)
+                                answer_callback_query(callback_id, '❌ Rejected!')
+
+            except Exception as e:
+                print(f"Telegram poller error: {e}")
+                time.sleep(5)
+
+    poller_thread = threading.Thread(target=telegram_poller, daemon=True)
+    poller_thread.start()
+
     # ---- Admin ----
 
     @app.route('/admin')
@@ -725,15 +942,71 @@ def create_app():
     def admin():
         if not current_user.is_admin:
             abort(403)
-        users = User.query.order_by(User.created_at.desc()).all()
-        vibes = VibeCheck.query.order_by(VibeCheck.created_at.desc()).all()
-        reports = Report.query.filter_by(status='pending').order_by(Report.created_at.desc()).all()
+
         total_users = User.query.count()
+        new_users_today = User.query.filter(
+            User.created_at > datetime.now(timezone.utc) - timedelta(hours=24)
+        ).count()
+        online_users = User.query.filter(
+            User.last_seen > datetime.now(timezone.utc) - timedelta(minutes=5)
+        ).count()
+        banned_users = User.query.filter_by(is_banned=True).count()
+
         total_vibes = VibeCheck.query.count()
+        pending_vibes = VibeCheck.query.filter_by(status='pending').order_by(VibeCheck.created_at.desc()).all()
+        approved_vibes = VibeCheck.query.filter_by(status='approved').count()
         total_photos = VibePhoto.query.count()
-        return render_template('admin.html', users=users, vibes=vibes, reports=reports,
-                               total_users=total_users, total_vibes=total_vibes,
-                               total_photos=total_photos)
+
+        users = User.query.order_by(User.created_at.desc()).all()
+        reports = Report.query.filter_by(status='pending').order_by(Report.created_at.desc()).all()
+
+        return render_template('admin.html',
+            total_users=total_users,
+            new_users_today=new_users_today,
+            online_users=online_users,
+            banned_users=banned_users,
+            total_vibes=total_vibes,
+            pending_vibes=pending_vibes,
+            approved_vibes=approved_vibes,
+            total_photos=total_photos,
+            users=users,
+            reports=reports
+        )
+
+    @app.route('/admin/approve/<int:vid>')
+    @login_required
+    def approve_vibe(vid):
+        if not current_user.is_admin:
+            abort(403)
+        vc = VibeCheck.query.get_or_404(vid)
+        if vc.status != 'pending':
+            return redirect(url_for('admin'))
+
+        vc.status = 'approved'
+        vc.reviewed_at = datetime.now(timezone.utc)
+        vc.reviewed_by = current_user.id
+        db.session.commit()
+        flash('Vibe Check APPROVED ✅', 'success')
+        return redirect(url_for('admin'))
+
+    @app.route('/admin/reject/<int:vid>')
+    @login_required
+    def reject_vibe(vid):
+        if not current_user.is_admin:
+            abort(403)
+        vc = VibeCheck.query.get_or_404(vid)
+        if vc.status != 'pending':
+            return redirect(url_for('admin'))
+
+        for photo in vc.photos:
+            delete_photo(photo.public_id)
+
+        vc.status = 'rejected'
+        vc.reviewed_at = datetime.now(timezone.utc)
+        vc.reviewed_by = current_user.id
+        db.session.commit()
+        flash('Vibe Check REJECTED and photos deleted ❌', 'info')
+        return redirect(url_for('admin'))
 
     @app.route('/admin/delete_vibe/<int:vid>')
     @login_required
@@ -741,12 +1014,9 @@ def create_app():
         if not current_user.is_admin:
             abort(403)
         vc = VibeCheck.query.get_or_404(vid)
-        
         for p in vc.photos:
-            if p.public_id:
-                delete_from_cloudinary(p.public_id)
+            delete_photo(p.public_id)
             db.session.delete(p)
-        
         VibeCheckTag.query.filter_by(vibe_check_id=vid).delete()
         Report.query.filter_by(vibe_check_id=vid).delete()
         db.session.delete(vc)
@@ -776,7 +1046,13 @@ def create_app():
         flash('Report resolved', 'info')
         return redirect(url_for('admin'))
 
-    # ---- API endpoints for JS ----
+    # ---- File serving ----
+
+    @app.route('/uploads/<path:filename>')
+    def uploaded_file(filename):
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+    # ---- API ----
 
     @app.route('/api/search')
     def api_search():
@@ -818,7 +1094,7 @@ def create_app():
             })
         return jsonify(output)
 
-    # ---- Error handlers ----
+    # ---- Errors ----
 
     @app.errorhandler(404)
     def not_found(e):

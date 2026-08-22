@@ -2,214 +2,192 @@
 {% block title %}Admin — VIBE MAP{% endblock %}
 
 {% block content %}
-<div class="container" style="padding-top:24px;">
-  <h1 class="section-title" style="margin-top:0;">⚙️ ADMIN PANEL</h1>
+<div class="container" style="padding:20px; padding-bottom:100px; max-width:900px; margin:0 auto;">
 
-  <!-- Stats Cards -->
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:32px;">
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;text-align:center;">
-      <div style="font-size:32px;font-weight:900;background:var(--gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">{{ total_users }}</div>
-      <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:600;margin-top:4px;">Users</div>
+  <h1 style="font-size:24px; font-weight:900; margin-bottom:8px;">
+    🛡️ ADMIN DASHBOARD
+  </h1>
+  <p style="color:var(--muted); margin-bottom:30px;">Welcome back, {{ current_user.username }}</p>
+
+  <!-- ============================================ -->
+  <!-- STATS GRID -->
+  <!-- ============================================ -->
+
+  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:10px; margin-bottom:30px;">
+
+    <div style="background:var(--card2); padding:16px; border-radius:12px; text-align:center; border:1px solid var(--border);">
+      <div style="font-size:28px; font-weight:900;">{{ total_users }}</div>
+      <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;">Total Users</div>
     </div>
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;text-align:center;">
-      <div style="font-size:32px;font-weight:900;background:var(--gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">{{ total_vibes }}</div>
-      <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:600;margin-top:4px;">Vibe Checks</div>
+
+    <div style="background:var(--card2); padding:16px; border-radius:12px; text-align:center; border:1px solid var(--border);">
+      <div style="font-size:28px; font-weight:900; color:#4CAF50;">{{ new_users_today }}</div>
+      <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;">New Today</div>
     </div>
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;text-align:center;">
-      <div style="font-size:32px;font-weight:900;background:var(--gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">{{ total_photos }}</div>
-      <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:600;margin-top:4px;">Photos</div>
+
+    <div style="background:var(--card2); padding:16px; border-radius:12px; text-align:center; border:1px solid var(--border);">
+      <div style="font-size:28px; font-weight:900; color:#2196F3;">{{ online_users }}</div>
+      <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;">Online Now</div>
     </div>
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;text-align:center;">
-      <div style="font-size:32px;font-weight:900;color:var(--error);">{{ reports|length }}</div>
-      <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:600;margin-top:4px;">Reports</div>
+
+    <div style="background:var(--card2); padding:16px; border-radius:12px; text-align:center; border:1px solid var(--border);">
+      <div style="font-size:28px; font-weight:900; color:#f44336;">{{ banned_users }}</div>
+      <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;">Banned</div>
     </div>
+
+    <div style="background:var(--card2); padding:16px; border-radius:12px; text-align:center; border:1px solid var(--border);">
+      <div style="font-size:28px; font-weight:900;">{{ total_vibes }}</div>
+      <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;">Total Vibes</div>
+    </div>
+
+    <div style="background:var(--card2); padding:16px; border-radius:12px; text-align:center; border:1px solid var(--border);">
+      <div style="font-size:28px; font-weight:900; color:#ff9800;">{{ pending_vibes|length }}</div>
+      <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;">Pending</div>
+    </div>
+
+    <div style="background:var(--card2); padding:16px; border-radius:12px; text-align:center; border:1px solid var(--border);">
+      <div style="font-size:28px; font-weight:900; color:#4CAF50;">{{ approved_vibes }}</div>
+      <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;">Approved</div>
+    </div>
+
+    <div style="background:var(--card2); padding:16px; border-radius:12px; text-align:center; border:1px solid var(--border);">
+      <div style="font-size:28px; font-weight:900;">{{ total_photos }}</div>
+      <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;">Photos</div>
+    </div>
+
   </div>
 
-  <div class="admin-tabs">
-    <button class="admin-tab active" data-tab="users">👤 Users ({{ users|length }})</button>
-    <button class="admin-tab" data-tab="vibes">📸 Vibe Checks ({{ vibes|length }})</button>
-    <button class="admin-tab" data-tab="reports">🚨 Reports ({{ reports|length }})</button>
-  </div>
 
-  <!-- Users Panel -->
-  <div class="admin-panel active" id="panel-users">
-    <p style="color:var(--muted);font-size:13px;margin-bottom:16px;">
-      All registered users with join date and activity status.
-    </p>
-    <div style="overflow-x:auto;">
-      <table class="admin-table">
-        <thead>
-          <tr>
-            <th>User</th>
-            <th>Email</th>
-            <th>Vibes</th>
-            <th>Joined</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for u in users %}
-          <tr>
-            <td>
-              <div style="display:flex;align-items:center;gap:10px;">
-                <img src="{{ url_for('uploaded_file', filename=u.profile_photo) }}"
-                     style="width:32px;height:32px;border-radius:50%;object-fit:cover;"
-                     onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect fill=%22%231a1a1a%22 width=%2232%22 height=%2232%22/></svg>'">
-                <div>
-                  <a href="{{ url_for('profile', username=u.username) }}" style="font-weight:700;">{{ u.username }}</a>
-                  {% if u.is_admin %}<span style="font-size:9px;background:var(--accent);color:#000;padding:1px 6px;border-radius:4px;font-weight:700;margin-left:4px;">ADMIN</span>{% endif %}
-                </div>
+  <!-- ============================================ -->
+  <!-- PENDING APPROVALS -->
+  <!-- ============================================ -->
+
+  <h2 style="font-size:18px; font-weight:800; margin-bottom:16px; color:#ff9800;">
+    ⏳ PENDING APPROVALS ({{ pending_vibes|length }})
+  </h2>
+
+  {% if pending_vibes %}
+    {% for vc in pending_vibes %}
+    <div style="background:var(--card2); padding:16px; border-radius:12px; margin-bottom:12px; border:2px solid #ff9800;">
+
+      <div style="display:flex; gap:16px; margin-bottom:12px;">
+        {% if vc.first_photo %}
+        <img src="{{ vc.first_photo }}" style="width:80px; height:80px; border-radius:8px; object-fit:cover;" onerror="this.style.display='none'">
+        {% endif %}
+        <div style="flex:1;">
+          <div style="font-weight:700; font-size:15px;">📍 {{ vc.place.name }}</div>
+          <div style="color:var(--muted); font-size:13px;">👤 {{ vc.user.username }} · ⭐ {{ vc.rating }}/5</div>
+          <div style="color:var(--muted); font-size:12px;">{{ vc.created_at.strftime('%b %d, %H:%M') }} {% if vc.location_verified %}✅ Verified{% endif %}</div>
+          {% if vc.review_text %}<div style="font-size:13px; margin-top:4px; font-style:italic;">"{{ vc.review_text }}"</div>{% endif %}
+        </div>
+      </div>
+
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a href="{{ url_for('approve_vibe', vid=vc.id) }}" style="padding:10px 20px; background:#4CAF50; color:white; border-radius:8px; text-decoration:none; font-weight:600; font-size:13px;">✅ Approve</a>
+        <a href="{{ url_for('reject_vibe', vid=vc.id) }}" style="padding:10px 20px; background:#f44336; color:white; border-radius:8px; text-decoration:none; font-weight:600; font-size:13px;">❌ Reject</a>
+        <a href="{{ url_for('admin_delete_vibe', vid=vc.id) }}" style="padding:10px 20px; background:#333; color:var(--muted); border-radius:8px; text-decoration:none; font-weight:600; font-size:13px;">🗑️ Delete</a>
+      </div>
+
+    </div>
+    {% endfor %}
+  {% else %}
+    <div style="background:var(--card2); padding:20px; border-radius:12px; margin-bottom:30px; text-align:center; color:var(--muted); border:1px solid var(--border);">
+      ✅ No pending approvals
+    </div>
+  {% endif %}
+
+
+  <!-- ============================================ -->
+  <!-- REGISTERED USERS -->
+  <!-- ============================================ -->
+
+  <h2 style="font-size:18px; font-weight:800; margin-bottom:16px;">
+    👥 REGISTERED USERS ({{ total_users }})
+  </h2>
+
+  <div style="background:var(--card2); border-radius:12px; overflow:hidden; margin-bottom:30px; border:1px solid var(--border);">
+    <table style="width:100%; border-collapse:collapse; font-size:14px;">
+      <thead>
+        <tr style="background:var(--card);">
+          <th style="padding:12px; text-align:left; font-size:11px; color:var(--muted); text-transform:uppercase;">User</th>
+          <th style="padding:12px; text-align:left; font-size:11px; color:var(--muted); text-transform:uppercase;">Joined</th>
+          <th style="padding:12px; text-align:left; font-size:11px; color:var(--muted); text-transform:uppercase;">Status</th>
+          <th style="padding:12px; text-align:left; font-size:11px; color:var(--muted); text-transform:uppercase;">Vibes</th>
+          <th style="padding:12px; text-align:left; font-size:11px; color:var(--muted); text-transform:uppercase;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in users %}
+        <tr style="border-top:1px solid var(--border);">
+          <td style="padding:12px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              {% if user.profile_photo and 'http' in (user.profile_photo or '') %}
+              <img src="{{ user.profile_photo }}" style="width:32px; height:32px; border-radius:50%; object-fit:cover;">
+              {% else %}
+              <div style="width:32px; height:32px; border-radius:50%; background:var(--card); display:flex; align-items:center; justify-content:center;">👤</div>
+              {% endif %}
+              <div>
+                <div style="font-weight:600;">{{ user.username }}</div>
+                <div style="font-size:11px; color:var(--muted);">{{ user.email }}</div>
               </div>
-            </td>
-            <td style="color:var(--muted);font-size:13px;">{{ u.email }}</td>
-            <td>{{ u.vibe_checks.count() }}</td>
-            <td style="color:var(--muted);font-size:12px;white-space:nowrap;">
-              {{ u.created_at.strftime('%b %d, %Y') }}
-              <br><span style="font-size:10px;color:#555;">{{ u.created_at.strftime('%I:%M %p') }}</span>
-            </td>
-            <td>
-              {% if u.is_banned %}
-                <span style="color:var(--error);font-weight:700;font-size:12px;background:rgba(255,59,48,0.1);padding:2px 8px;border-radius:4px;">BANNED</span>
-              {% else %}
-                <span style="color:var(--success);font-weight:700;font-size:12px;background:rgba(52,199,89,0.1);padding:2px 8px;border-radius:4px;">ACTIVE</span>
-              {% endif %}
-            </td>
-            <td>
-              {% if not u.is_admin %}
-                <a href="{{ url_for('admin_ban_user', uid=u.id) }}" class="admin-btn {% if u.is_banned %}success{% else %}danger{% endif %}">
-                  {% if u.is_banned %}Unban{% else %}Ban{% endif %}
-                </a>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+            </div>
+          </td>
+          <td style="padding:12px; font-size:13px; color:var(--muted);">{{ user.created_at.strftime('%b %d, %Y') }}</td>
+          <td style="padding:12px;">
+            {% if user.is_banned %}
+              <span style="background:#f44336; color:white; padding:2px 8px; border-radius:10px; font-size:11px;">Banned</span>
+            {% elif user.is_online %}
+              <span style="background:#4CAF50; color:white; padding:2px 8px; border-radius:10px; font-size:11px;">Online</span>
+            {% else %}
+              <span style="background:#333; color:var(--muted); padding:2px 8px; border-radius:10px; font-size:11px;">Offline</span>
+            {% endif %}
+            {% if user.is_admin %}
+              <span style="background:#9c27b0; color:white; padding:2px 8px; border-radius:10px; font-size:11px; margin-left:4px;">Admin</span>
+            {% endif %}
+          </td>
+          <td style="padding:12px; font-size:13px;">{{ user.vibe_checks.count() }}</td>
+          <td style="padding:12px;">
+            <a href="{{ url_for('profile', username=user.username) }}" style="padding:4px 10px; background:var(--card); color:var(--text); border-radius:6px; text-decoration:none; font-size:12px; margin-right:4px;">View</a>
+            <a href="{{ url_for('admin_ban_user', uid=user.id) }}" style="padding:4px 10px; background:{{ '#4CAF50' if user.is_banned else '#f44336' }}; color:white; border-radius:6px; text-decoration:none; font-size:12px;">
+              {{ 'Unban' if user.is_banned else 'Ban' }}
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 
-  <!-- Vibe Checks Panel -->
-  <div class="admin-panel" id="panel-vibes">
-    <p style="color:var(--muted);font-size:13px;margin-bottom:16px;">
-      All vibe checks with photos. Click photo to view full size.
-    </p>
-    <div style="overflow-x:auto;">
-      <table class="admin-table">
-        <thead>
-          <tr>
-            <th>Photos</th>
-            <th>User</th>
-            <th>Place</th>
-            <th>Rating</th>
-            <th>Verified</th>
-            <th>Date</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for vc in vibes %}
-          <tr>
-            <td>
-              {% if vc.photos.first() %}
-                <img class="admin-photo" src="{{ url_for('uploaded_file', filename=vc.photos.first().filename) }}" data-lightbox alt="Vibe">
-                {% if vc.photos.count() > 1 %}
-                  <span style="font-size:10px;color:var(--muted);">+{{ vc.photos.count() - 1 }} more</span>
-                {% endif %}
-              {% else %}
-                <span style="color:var(--muted);font-size:12px;">No photo</span>
-              {% endif %}
-            </td>
-            <td>
-              <a href="{{ url_for('profile', username=vc.user.username) }}">{{ vc.user.username }}</a>
-            </td>
-            <td>
-              <a href="{{ url_for('place', google_place_id=vc.place.google_place_id) }}">{{ vc.place.name }}</a>
-              <br><span style="font-size:10px;color:var(--muted);">{{ vc.place.address[:40] }}{% if vc.place.address|length > 40 %}...{% endif %}</span>
-            </td>
-            <td>
-              <span style="font-weight:700;">🔥 {{ vc.rating }}/5</span>
-              {% if vc.review_text %}
-                <br><span style="font-size:11px;color:var(--muted);max-width:150px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">"{{ vc.review_text }}"</span>
-              {% endif %}
-            </td>
-            <td>
-              {% if vc.location_verified %}
-                <span style="color:var(--success);font-weight:700;font-size:12px;">✓ Verified</span>
-              {% else %}
-                <span style="color:var(--muted);font-size:12px;">—</span>
-              {% endif %}
-            </td>
-            <td style="color:var(--muted);font-size:12px;white-space:nowrap;">
-              {{ vc.created_at.strftime('%b %d') }}
-              <br><span style="font-size:10px;color:#555;">{{ vc.created_at.strftime('%I:%M %p') }}</span>
-            </td>
-            <td>
-              <a href="{{ url_for('admin_delete_vibe', vid=vc.id) }}"
-                 class="admin-btn danger" onclick="return confirm('Delete this vibe check and all its photos?')">Delete</a>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+
+  <!-- ============================================ -->
+  <!-- REPORTS -->
+  <!-- ============================================ -->
+
+  {% if reports %}
+  <h2 style="font-size:18px; font-weight:800; margin-bottom:16px; color:#f44336;">
+    🚨 REPORTS ({{ reports|length }})
+  </h2>
+
+  {% for report in reports %}
+  <div style="background:var(--card2); padding:16px; border-radius:12px; margin-bottom:10px; border:1px solid var(--border);">
+    <div style="font-weight:600;">{{ report.reason }}</div>
+    <div style="color:var(--muted); font-size:13px; margin-top:4px;">by {{ report.user.username }} · {{ report.created_at.strftime('%b %d, %H:%M') }}</div>
+    <div style="margin-top:10px;">
+      <a href="{{ url_for('admin_delete_vibe', vid=report.vibe_check_id) }}" style="padding:6px 14px; background:#f44336; color:white; border-radius:6px; text-decoration:none; font-size:12px;">Delete Vibe</a>
+      <a href="{{ url_for('admin_delete_report', rid=report.id) }}" style="padding:6px 14px; background:#333; color:var(--muted); border-radius:6px; text-decoration:none; font-size:12px; margin-left:6px;">Dismiss</a>
     </div>
   </div>
+  {% endfor %}
+  {% endif %}
 
-  <!-- Reports Panel -->
-  <div class="admin-panel" id="panel-reports">
-    {% if reports %}
-      <p style="color:var(--muted);font-size:13px;margin-bottom:16px;">
-        Pending reports from users. Review and take action.
-      </p>
-      <div style="overflow-x:auto;">
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th>Reporter</th>
-              <th>Reported Vibe</th>
-              <th>By User</th>
-              <th>Photo</th>
-              <th>Reason</th>
-              <th>Date</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for r in reports %}
-            <tr>
-              <td>{{ r.user.username }}</td>
-              <td>
-                <a href="{{ url_for('place', google_place_id=r.vibe_check.place.google_place_id) }}">{{ r.vibe_check.place.name }}</a>
-              </td>
-              <td>{{ r.vibe_check.user.username }}</td>
-              <td>
-                {% if r.vibe_check.photos.first() %}
-                  <img src="{{ url_for('uploaded_file', filename=r.vibe_check.photos.first().filename) }}"
-                       style="width:50px;height:50px;object-fit:cover;border-radius:8px;cursor:pointer;" data-lightbox>
-                {% else %}
-                  —
-                {% endif %}
-              </td>
-              <td style="font-weight:600;font-size:13px;">{{ r.reason }}</td>
-              <td style="color:var(--muted);font-size:12px;">{{ r.created_at.strftime('%b %d, %I:%M %p') }}</td>
-              <td style="white-space:nowrap;">
-                <a href="{{ url_for('admin_delete_report', rid=r.id) }}"
-                   class="admin-btn success" style="margin-right:4px;">Resolve</a>
-                <a href="{{ url_for('admin_delete_vibe', vid=r.vibe_check_id) }}"
-                   class="admin-btn danger" onclick="return confirm('Delete the reported vibe check?')">Delete Vibe</a>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% else %}
-      <div class="empty-state">
-        <div class="empty-icon">✅</div>
-        <h3>No pending reports</h3>
-        <p>Everything looks clean!</p>
-      </div>
-    {% endif %}
-  </div>
 </div>
+
+<style>
+@media (max-width: 600px) {
+  table { font-size: 12px; }
+  th, td { padding: 8px !important; }
+  table th:nth-child(3), table td:nth-child(4) { display: none; }
+}
+</style>
+
 {% endblock %}

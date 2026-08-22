@@ -70,8 +70,11 @@
            id="lngInput"
            value="">
 
-    <!-- Selected tags container - populated by JS -->
-    <div id="selectedTagsContainer"></div>
+    <!-- Photo count tracker -->
+    <input type="hidden"
+           id="photoCountInput"
+           name="photo_count"
+           value="0">
 
 
     <!-- ========================================================= -->
@@ -86,12 +89,11 @@
 
       <div id="photoUploadArea">
 
-        <!-- PHOTO 1 -->
+        <!-- PHOTO 0 -->
         <div class="vc-upload-area"
-             id="uploadArea0"
-             onclick="openPhotoPicker(0)">
+             id="uploadArea0">
 
-          <div class="upload-content">
+          <div class="upload-content" id="uploadContent0">
 
             <div class="upload-icon">
               📸
@@ -106,11 +108,11 @@
             </p>
 
             <div class="upload-options"
+                 id="uploadOptions0"
                  style="margin-top:16px;">
 
               <!-- CAMERA -->
-              <label class="upload-opt-btn"
-                     onclick="event.stopPropagation();">
+              <label class="upload-opt-btn">
 
                 📷 Take Photo
 
@@ -121,15 +123,13 @@
                   accept="image/*"
                   capture="environment"
                   style="display:none"
-                  onchange="handlePhoto(this, 0)"
                 >
 
               </label>
 
 
               <!-- UPLOAD -->
-              <label class="upload-opt-btn"
-                     onclick="event.stopPropagation();">
+              <label class="upload-opt-btn">
 
                 🖼️ Upload Photo
 
@@ -139,7 +139,6 @@
                   name="photo_0"
                   accept="image/jpeg,image/png,image/webp"
                   style="display:none"
-                  onchange="handlePhoto(this, 0)"
                 >
 
               </label>
@@ -161,7 +160,6 @@
       <button
         type="button"
         id="addPhotoBtn"
-        onclick="addPhotoSlot()"
         style="
           display:none;
           margin-top:12px;
@@ -206,7 +204,6 @@
           type="button"
           class="star-btn"
           data-val="1"
-          onclick="setRating(1)"
           aria-label="1 star"
         >★</button>
 
@@ -214,7 +211,6 @@
           type="button"
           class="star-btn"
           data-val="2"
-          onclick="setRating(2)"
           aria-label="2 stars"
         >★</button>
 
@@ -222,7 +218,6 @@
           type="button"
           class="star-btn"
           data-val="3"
-          onclick="setRating(3)"
           aria-label="3 stars"
         >★</button>
 
@@ -230,7 +225,6 @@
           type="button"
           class="star-btn"
           data-val="4"
-          onclick="setRating(4)"
           aria-label="4 stars"
         >★</button>
 
@@ -238,7 +232,6 @@
           type="button"
           class="star-btn"
           data-val="5"
-          onclick="setRating(5)"
           aria-label="5 stars"
         >★</button>
 
@@ -259,7 +252,7 @@
 
 
     <!-- ========================================================= -->
-    <!-- VIBE TAGS - FIXED VERSION -->
+    <!-- VIBE TAGS -->
     <!-- ========================================================= -->
 
     <div class="form-section">
@@ -271,7 +264,7 @@
 
 
       <div class="tag-grid" id="tagGrid">
-        <!-- Tags will be rendered by JS for better control -->
+        <!-- Tags rendered by JS -->
       </div>
 
     </div>
@@ -342,26 +335,16 @@
 .star-btn {
   appearance: none;
   -webkit-appearance: none;
-
   border: none;
   outline: none;
-
   background: transparent;
-
   padding: 0;
   margin: 0;
-
   font-size: 48px;
   line-height: 1;
-
   color: #444;
-
   cursor: pointer;
-
-  transition:
-    transform 0.15s ease,
-    color 0.15s ease,
-    text-shadow 0.15s ease;
+  transition: transform 0.15s ease, color 0.15s ease, text-shadow 0.15s ease;
 }
 
 .star-btn:hover {
@@ -376,16 +359,13 @@
 
 .star-btn.active {
   color: #ffcc00;
-
-  text-shadow:
-    0 2px 5px rgba(255, 204, 0, 0.35);
-
+  text-shadow: 0 2px 5px rgba(255, 204, 0, 0.35);
   transform: scale(1.08);
 }
 
 
 /* ========================================================= */
-/* VIBE TAGS - FIXED */
+/* VIBE TAGS */
 /* ========================================================= */
 
 .tag-grid {
@@ -398,24 +378,17 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  
   padding: 10px 18px;
-  
   background: var(--card2, #222);
   border: 2px solid var(--border, #333);
   border-radius: 25px;
-  
   color: var(--text, #fff);
   font-size: 14px;
   font-weight: 600;
   font-family: var(--font, sans-serif);
-  
   cursor: pointer;
   user-select: none;
-  
   transition: all 0.15s ease;
-  
-  /* CRITICAL: Ensure clicks work */
   pointer-events: auto !important;
   position: relative;
   z-index: 1;
@@ -464,7 +437,7 @@
   margin-top: 8px;
   font-size: 13px;
   font-weight: 700;
-  color: #ffcc00;
+  color: #4CAF50;
 }
 
 
@@ -483,20 +456,23 @@
 /* ========================================================= */
 
 @media (max-width: 600px) {
-
   .star-btn {
     font-size: 42px;
   }
-
   #starContainer {
     gap: 4px !important;
   }
-  
   .vibe-tag {
     padding: 8px 14px;
     font-size: 13px;
   }
+}
 
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  50% { transform: translateX(5px); }
+  75% { transform: translateX(-5px); }
 }
 
 </style>
@@ -508,16 +484,10 @@
 /* VARIABLES */
 /* ========================================================= */
 
-var photoCount = 0;
+var photoSlotCount = 0;
 var maxPhotos = 4;
 var maxTags = 4;
 var selectedTags = [];
-
-
-/* ========================================================= */
-/* TAG DATA - From Flask */
-/* ========================================================= */
-
 var tagsData = [
   {% for tag in tags %}
   { id: {{ tag.id }}, emoji: "{{ tag.emoji }}", name: "{{ tag.name }}" },
@@ -526,13 +496,177 @@ var tagsData = [
 
 
 /* ========================================================= */
-/* RENDER TAGS - Called on page load */
+/* PHOTO UPLOAD - Direct event binding */
+/* ========================================================= */
+
+function setupPhotoInput(inputId, slotIndex) {
+  var input = document.getElementById(inputId);
+  if (!input) return;
+  
+  input.addEventListener('change', function() {
+    if (!this.files || !this.files[0]) return;
+    
+    var file = this.files[0];
+    
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image must be under 5MB');
+      this.value = '';
+      return;
+    }
+    
+    var allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (allowedTypes.indexOf(file.type) === -1) {
+      alert('Please upload JPG, PNG or WEBP image');
+      this.value = '';
+      return;
+    }
+    
+    // Show preview
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var area = document.getElementById('uploadArea' + slotIndex);
+      if (!area) return;
+      
+      // Remove old preview
+      var oldPreview = area.querySelector('.vc-photo-wrapper');
+      if (oldPreview) oldPreview.remove();
+      
+      // Create new preview
+      var wrapper = document.createElement('div');
+      wrapper.className = 'vc-photo-wrapper';
+      
+      var img = document.createElement('img');
+      img.className = 'vc-preview';
+      img.src = e.target.result;
+      img.alt = 'Uploaded photo';
+      
+      var success = document.createElement('div');
+      success.className = 'photo-success';
+      success.textContent = '✓ Photo selected';
+      
+      wrapper.appendChild(img);
+      wrapper.appendChild(success);
+      
+      var content = area.querySelector('.upload-content');
+      if (content) {
+        content.insertBefore(wrapper, content.firstChild);
+        var opts = content.querySelector('.upload-options');
+        if (opts) opts.style.display = 'none';
+      }
+      
+      area.classList.add('has-photo');
+      updateAddPhotoButton();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Setup initial photo inputs
+setupPhotoInput('photoInput0', 0);
+setupPhotoInput('cameraInput0', 0);
+
+// Click handler for upload area
+document.getElementById('uploadArea0').addEventListener('click', function(e) {
+  if (e.target.closest('.upload-opt-btn')) return;
+  document.getElementById('photoInput0').click();
+});
+
+
+/* ========================================================= */
+/* ADD PHOTO SLOT */
+/* ========================================================= */
+
+document.getElementById('addPhotoBtn').addEventListener('click', function() {
+  if (photoSlotCount >= maxPhotos - 1) {
+    this.style.display = 'none';
+    return;
+  }
+  
+  photoSlotCount++;
+  var idx = photoSlotCount;
+  
+  var div = document.createElement('div');
+  div.id = 'uploadArea' + idx;
+  div.className = 'vc-upload-area';
+  div.style.marginTop = '12px';
+  
+  div.innerHTML = `
+    <div class="upload-content">
+      <div class="upload-icon">📸</div>
+      <p>Add photo ${idx + 1}</p>
+      <div class="upload-options" style="margin-top:12px;">
+        <label class="upload-opt-btn">
+          📷 Take Photo
+          <input type="file" id="cameraInput${idx}" name="camera_photo_${idx}" accept="image/*" capture="environment" style="display:none;">
+        </label>
+        <label class="upload-opt-btn">
+          🖼️ Upload Photo
+          <input type="file" id="photoInput${idx}" name="photo_${idx}" accept="image/jpeg,image/png,image/webp" style="display:none;">
+        </label>
+      </div>
+    </div>
+  `;
+  
+  // Setup event listeners for new inputs
+  setupPhotoInput('photoInput' + idx, idx);
+  setupPhotoInput('cameraInput' + idx, idx);
+  
+  div.addEventListener('click', function(e) {
+    if (e.target.closest('.upload-opt-btn')) return;
+    document.getElementById('photoInput' + idx).click();
+  });
+  
+  document.getElementById('morePhotos').appendChild(div);
+  updateAddPhotoButton();
+});
+
+function updateAddPhotoButton() {
+  var btn = document.getElementById('addPhotoBtn');
+  var hasPhotos = document.querySelectorAll('.vc-upload-area.has-photo').length;
+  btn.style.display = hasPhotos > 0 && photoSlotCount < maxPhotos - 1 ? 'block' : 'none';
+}
+
+
+/* ========================================================= */
+/* STAR RATING */
+/* ========================================================= */
+
+document.querySelectorAll('.star-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    setRating(parseInt(this.dataset.val));
+  });
+});
+
+function setRating(val) {
+  if (isNaN(val)) val = 0;
+  if (val < 1) val = 1;
+  if (val > 5) val = 5;
+  
+  document.getElementById('ratingVal').value = val;
+  
+  document.querySelectorAll('.star-btn').forEach(function(star) {
+    var sv = parseInt(star.dataset.val);
+    star.classList.toggle('active', sv <= val);
+  });
+  
+  var labels = {
+    1: '😕 Not great',
+    2: '🙂 Could be better',
+    3: '😎 Pretty good',
+    4: '🔥 Great vibe',
+    5: '🤩 Absolutely amazing!'
+  };
+  document.getElementById('ratingText').textContent = labels[val] || 'Tap a star to rate';
+}
+
+
+/* ========================================================= */
+/* TAGS */
 /* ========================================================= */
 
 function renderTags() {
   var grid = document.getElementById('tagGrid');
   if (!grid) return;
-  
   grid.innerHTML = '';
   
   tagsData.forEach(function(tag) {
@@ -541,32 +675,24 @@ function renderTags() {
     el.id = 'vtag-' + tag.id;
     el.textContent = tag.emoji + ' ' + tag.name;
     el.setAttribute('data-tag-id', tag.id);
-    el.setAttribute('role', 'button');
-    el.setAttribute('tabindex', '0');
     
-    // Use mousedown + touchstart for maximum compatibility
     el.addEventListener('mousedown', function(e) {
       e.preventDefault();
       e.stopPropagation();
       toggleTag(tag.id);
     });
     
-    el.addEventListener('touchstart', function(e) {
-      // Don't prevent default here to allow scroll
-      // But mark that touch happened
-      this._touched = true;
-    }, { passive: true });
-    
     el.addEventListener('touchend', function(e) {
-      if (this._touched) {
-        e.preventDefault();
-        e.stopPropagation();
-        toggleTag(tag.id);
-        this._touched = false;
-      }
+      e.preventDefault();
+      e.stopPropagation();
+      toggleTag(tag.id);
     });
     
-    // Keyboard support
+    el.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    
     el.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
@@ -574,295 +700,58 @@ function renderTags() {
       }
     });
     
-    // Prevent any click from bubbling
-    el.addEventListener('click', function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-    });
-    
     grid.appendChild(el);
   });
 }
 
-
-/* ========================================================= */
-/* TOGGLE TAG - NEW IMPLEMENTATION */
-/* ========================================================= */
-
 function toggleTag(id) {
-  var idx = selectedTags.indexOf(id);
   var el = document.getElementById('vtag-' + id);
-  
   if (!el) return;
   
+  var idx = selectedTags.indexOf(id);
+  
   if (idx > -1) {
-    // Deselect
     selectedTags.splice(idx, 1);
     el.classList.remove('selected');
+    var inp = document.querySelector('input[name="tags"][value="' + id + '"]');
+    if (inp) inp.remove();
   } else {
-    // Check limit
     if (selectedTags.length >= maxTags) {
-      // Shake animation
       el.style.animation = 'none';
-      el.offsetHeight; // Trigger reflow
+      el.offsetHeight;
       el.style.animation = 'shake 0.3s ease';
       return;
     }
-    
-    // Select
     selectedTags.push(id);
     el.classList.add('selected');
-  }
-  
-  updateTagCount();
-  updateHiddenInputs();
-  updateDisabledState();
-}
-
-
-/* ========================================================= */
-/* UPDATE TAG COUNT DISPLAY */
-/* ========================================================= */
-
-function updateTagCount() {
-  var countEl = document.getElementById('tagCount');
-  if (countEl) {
-    countEl.textContent = selectedTags.length + '/' + maxTags + ' selected';
-  }
-}
-
-
-/* ========================================================= */
-/* UPDATE HIDDEN INPUTS FOR FORM SUBMISSION */
-/* ========================================================= */
-
-function updateHiddenInputs() {
-  var container = document.getElementById('selectedTagsContainer');
-  if (!container) return;
-  
-  // Clear existing
-  container.innerHTML = '';
-  
-  // Add new
-  selectedTags.forEach(function(tagId) {
     var input = document.createElement('input');
     input.type = 'hidden';
     input.name = 'tags';
-    input.value = tagId;
-    container.appendChild(input);
-  });
-}
-
-
-/* ========================================================= */
-/* UPDATE DISABLED STATE FOR UNSELECTED TAGS */
-/* ========================================================= */
-
-function updateDisabledState() {
-  var atLimit = selectedTags.length >= maxTags;
+    input.value = id;
+    document.getElementById('vibeCheckForm').appendChild(input);
+  }
   
-  tagsData.forEach(function(tag) {
-    var el = document.getElementById('vtag-' + tag.id);
-    if (!el) return;
-    
-    var isSelected = selectedTags.indexOf(tag.id) > -1;
-    
-    if (atLimit && !isSelected) {
-      el.classList.add('disabled');
-    } else {
-      el.classList.remove('disabled');
+  document.getElementById('tagCount').textContent = selectedTags.length + '/' + maxTags + ' selected';
+  
+  var atLimit = selectedTags.length >= maxTags;
+  tagsData.forEach(function(t) {
+    var tagEl = document.getElementById('vtag-' + t.id);
+    if (tagEl) {
+      tagEl.classList.toggle('disabled', atLimit && selectedTags.indexOf(t.id) === -1);
     }
   });
 }
 
-
-/* ========================================================= */
-/* OPEN PHOTO PICKER */
-/* ========================================================= */
-
-function openPhotoPicker(idx) {
-  var input = document.getElementById('photoInput' + idx);
-  if (input) {
-    input.click();
-  }
-}
-
-
-/* ========================================================= */
-/* HANDLE PHOTO */
-/* ========================================================= */
-
-function handlePhoto(input, idx) {
-  if (!input || !input.files || !input.files[0]) {
-    return;
-  }
-
-  var file = input.files[0];
-
-  /* Check file size */
-  if (file.size > 5 * 1024 * 1024) {
-    alert('Image must be under 5MB');
-    input.value = '';
-    return;
-  }
-
-  /* Check file type */
-  var allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-  if (allowedTypes.indexOf(file.type) === -1) {
-    alert('Please upload JPG, PNG or WEBP image.');
-    input.value = '';
-    return;
-  }
-
-  /* Preview */
-  var reader = new FileReader();
-
-  reader.onload = function(e) {
-    var area = document.getElementById('uploadArea' + idx);
-    if (!area) return;
-
-    var oldPreview = area.querySelector('.vc-photo-wrapper');
-    if (oldPreview) {
-      oldPreview.remove();
-    }
-
-    var wrapper = document.createElement('div');
-    wrapper.className = 'vc-photo-wrapper';
-
-    var img = document.createElement('img');
-    img.className = 'vc-preview';
-    img.src = e.target.result;
-    img.alt = 'Uploaded photo';
-
-    var success = document.createElement('div');
-    success.className = 'photo-success';
-    success.textContent = '✓ Photo selected';
-
-    wrapper.appendChild(img);
-    wrapper.appendChild(success);
-
-    var content = area.querySelector('.upload-content');
-    if (content) {
-      var oldPreviewImage = content.querySelector('.vc-photo-wrapper');
-      if (oldPreviewImage) {
-        oldPreviewImage.remove();
-      }
-
-      content.insertBefore(wrapper, content.firstChild);
-
-      var uploadOptions = content.querySelector('.upload-options');
-      if (uploadOptions) {
-        uploadOptions.style.display = 'flex';
-      }
-    }
-
-    area.classList.add('has-photo');
-
-    if (photoCount < maxPhotos - 1) {
-      document.getElementById('addPhotoBtn').style.display = 'block';
-    }
-  };
-
-  reader.readAsDataURL(file);
-}
-
-
-/* ========================================================= */
-/* ADD PHOTO SLOT */
-/* ========================================================= */
-
-function addPhotoSlot() {
-  if (photoCount >= maxPhotos - 1) {
-    document.getElementById('addPhotoBtn').style.display = 'none';
-    return;
-  }
-
-  photoCount++;
-  var idx = photoCount;
-
-  var div = document.createElement('div');
-  div.id = 'uploadArea' + idx;
-  div.className = 'vc-upload-area';
-  div.style.marginTop = '12px';
-
-  div.innerHTML = `
-    <div class="upload-content">
-      <div class="upload-icon">📸</div>
-      <p>Add photo ${idx + 1}</p>
-      <div class="upload-options" style="margin-top:12px;">
-        <label class="upload-opt-btn" onclick="event.stopPropagation();">
-          📷 Take Photo
-          <input type="file" id="cameraInput${idx}" name="camera_photo_${idx}" accept="image/*" capture="environment" style="display:none;" onchange="handlePhoto(this, ${idx})">
-        </label>
-        <label class="upload-opt-btn" onclick="event.stopPropagation();">
-          🖼️ Upload Photo
-          <input type="file" id="photoInput${idx}" name="photo_${idx}" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="handlePhoto(this, ${idx})">
-        </label>
-      </div>
-    </div>
-  `;
-
-  div.onclick = function() {
-    var input = document.getElementById('photoInput' + idx);
-    if (input) {
-      input.click();
-    }
-  };
-
-  document.getElementById('morePhotos').appendChild(div);
-
-  if (photoCount >= maxPhotos - 1) {
-    document.getElementById('addPhotoBtn').style.display = 'none';
-  }
-}
-
-
-/* ========================================================= */
-/* STAR RATING */
-/* ========================================================= */
-
-function setRating(val) {
-  val = parseInt(val);
-
-  if (isNaN(val)) val = 0;
-  if (val < 1) val = 1;
-  if (val > 5) val = 5;
-
-  document.getElementById('ratingVal').value = val;
-
-  var stars = document.querySelectorAll('.star-btn');
-  stars.forEach(function(star) {
-    var starValue = parseInt(star.getAttribute('data-val'));
-    if (starValue <= val) {
-      star.classList.add('active');
-    } else {
-      star.classList.remove('active');
-    }
-  });
-
-  var ratingText = document.getElementById('ratingText');
-  var labels = {
-    1: '😕 Not great',
-    2: '🙂 Could be better',
-    3: '😎 Pretty good',
-    4: '🔥 Great vibe',
-    5: '🤩 Absolutely amazing!'
-  };
-  ratingText.textContent = labels[val] || 'Tap a star to rate';
-}
+renderTags();
 
 
 /* ========================================================= */
 /* REVIEW CHARACTER COUNT */
 /* ========================================================= */
 
-var reviewText = document.getElementById('reviewText');
-
-if (reviewText) {
-  reviewText.addEventListener('input', function() {
-    document.getElementById('charCount').textContent = this.value.length + '/300';
-  });
-}
+document.getElementById('reviewText').addEventListener('input', function() {
+  document.getElementById('charCount').textContent = this.value.length + '/300';
+});
 
 
 /* ========================================================= */
@@ -871,38 +760,22 @@ if (reviewText) {
 
 document.getElementById('vibeCheckForm').addEventListener('submit', function(e) {
 
-  /* PHOTO CHECK */
-  var hasPhoto = false;
-
-  for (var i = 0; i < maxPhotos; i++) {
-    var photoInput = document.getElementById('photoInput' + i);
-    var cameraInput = document.getElementById('cameraInput' + i);
-
-    if (
-      (photoInput && photoInput.files && photoInput.files.length > 0) ||
-      (cameraInput && cameraInput.files && cameraInput.files.length > 0)
-    ) {
-      hasPhoto = true;
-      break;
-    }
-  }
-
-  if (!hasPhoto) {
+  // Photo check - use CSS class
+  if (!document.querySelector('.vc-upload-area.has-photo')) {
     e.preventDefault();
     alert('NO PHOTO = NO VIBE CHECK 👀 Upload a photo!');
     return;
   }
 
-  /* RATING CHECK */
+  // Rating check
   var rating = parseInt(document.getElementById('ratingVal').value);
-
   if (isNaN(rating) || rating < 1 || rating > 5) {
     e.preventDefault();
     alert('Please rate the vibe from 1 to 5 stars!');
     return;
   }
 
-  /* LOCATION */
+  // Get location
   var latInput = document.getElementById('latInput');
   var lngInput = document.getElementById('lngInput');
 
@@ -925,22 +798,13 @@ document.getElementById('vibeCheckForm').addEventListener('submit', function(e) 
         disableSubmitButton();
         document.getElementById('vibeCheckForm').submit();
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 5000,
-        maximumAge: 60000
-      }
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
     );
   } else {
     disableSubmitButton();
     document.getElementById('vibeCheckForm').submit();
   }
 });
-
-
-/* ========================================================= */
-/* DISABLE SUBMIT */
-/* ========================================================= */
 
 function disableSubmitButton() {
   var btn = document.getElementById('submitVibeBtn');
@@ -949,31 +813,6 @@ function disableSubmitButton() {
   btn.textContent = 'POSTING VIBE... 🔥';
 }
 
-
-/* ========================================================= */
-/* INITIALIZE ON PAGE LOAD */
-/* ========================================================= */
-
-document.addEventListener('DOMContentLoaded', function() {
-  renderTags();
-});
-
-
-/* Also run immediately in case DOM is already loaded */
-if (document.readyState !== 'loading') {
-  renderTags();
-}
-
 </script>
-
-<!-- Shake animation for tag limit -->
-<style>
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  50% { transform: translateX(5px); }
-  75% { transform: translateX(-5px); }
-}
-</style>
 
 {% endblock %}
